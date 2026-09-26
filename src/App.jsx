@@ -13,6 +13,7 @@ import { autoStateForIdleTime } from "./petMachine.js";
 import { useProgressSave } from "./useProgressSave.js";
 import { PET_ACTIONS, directionForGaze, gazeIndexFromPoint } from "./actionRegistry.js";
 import { AtlasFrame } from "./AtlasFrame.jsx";
+import { LitePetSprite } from "./LitePetSprite.jsx";
 import { createDragSession, updateDragSession } from "./dragSession.js";
 import { createFrameCoalescer } from "./dragCoalescer.js";
 
@@ -37,6 +38,8 @@ export function App() {
   const [atlasActionId, setAtlasActionId] = useState("idle");
   const [actionEffect, setActionEffect] = useState("");
   const [gazeIndex, setGazeIndex] = useState(0);
+  const [appearanceMode, setAppearanceMode] = useState("default");
+  const [liteManifest, setLiteManifest] = useState(null);
   const lastInteraction = useRef(Date.now());
   const temporaryTimer = useRef(null);
   const drag = useRef(null);
@@ -87,6 +90,13 @@ export function App() {
   useEffect(() => {
     window.pet?.setInteractionMode?.({ menuOpen });
   }, [menuOpen]);
+
+  useEffect(() => {
+    window.pet?.customAtlasStatus?.().then((status) => {
+      setAppearanceMode(status?.mode || "default");
+      setLiteManifest(status?.mode === "lite" ? (status.manifest || { images: {} }) : null);
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => window.pet?.onActionRequest?.((request) => {
     if (request && typeof request === "object" && request.type === "rps") {
@@ -389,7 +399,13 @@ export function App() {
         onLostPointerCapture={onLostPointerCapture}
         onDoubleClick={onDoubleClick}
       >
-      {state === "atlas-action" ? (
+      {appearanceMode === "lite" && liteManifest ? (
+        <LitePetSprite
+          manifest={liteManifest}
+          actionId={state === "atlas-action" ? activeAtlasAction.id : state}
+          effect={actionEffect}
+        />
+      ) : state === "atlas-action" ? (
         <AtlasFrame row={activeAtlasAction.row} sprite={activeAtlasAction.sprite} columns={activeAtlasAction.columns} sheetRows={activeAtlasAction.sheetRows} frames={activeAtlasAction.frames} frameSequence={activeAtlasAction.frameSequence} gestureChoice={activeAtlasAction.gestureChoice} loopMs={activeAtlasAction.loopMs} className={`pet-atlas-sprite ${activeAtlasAction.sprite ? "sheet-action" : ""} action-${actionEffect}`} label={activeAtlasAction.label} outfit={equipped.outfit} accessories={equipped.accessories} />
         ) : state === "idle" ? (
           <AtlasFrame row={gaze.row} frameOffset={gaze.column} frames={1} className="pet-atlas-sprite" label={`桌宠看向${gaze.label}`} outfit={equipped.outfit} accessories={equipped.accessories} />

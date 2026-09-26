@@ -3,13 +3,14 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
 const {
-  customAtlasPath,
   installCustomAtlas,
   parseCustomAssetCommand,
   resetCustomAtlas,
+  resolveAppearanceMode,
   resolveClientAsset,
 } = require("./customAssets.cjs");
 const { atlasFeedback } = require("./atlas-feedback.cjs");
+const { installLitePet, readLiteManifest, resetLitePet, writeActiveMode } = require("./litePet.cjs");
 const { isPetHitTarget } = require("./pet-hit-area.cjs");
 
 const isDev = process.argv.includes("--dev");
@@ -246,11 +247,13 @@ function installAtlasFromPath(sourcePath) {
 function resetAtlasToDefault() {
   try {
     resetCustomAtlas(app.getPath("userData"));
-    writeLog("custom-atlas reset completed (in-app)");
+    resetLitePet(app.getPath("userData"));
+    writeActiveMode(app.getPath("userData"), "default");
+    writeLog("custom appearance reset completed (in-app)");
     reloadPetWindows();
     return { ok: true, message: "已恢复默认形象。" };
   } catch (error) {
-    writeLog(`custom-atlas reset failed (in-app): ${error.message}`);
+    writeLog(`custom appearance reset failed (in-app): ${error.message}`);
     return { ok: false, error: atlasFeedback(error) };
   }
 }
@@ -1031,9 +1034,47 @@ ipcMain.handle("pet:install-custom-atlas", (_event, payload) => {
   return installAtlasFromPath(sourcePath);
 });
 ipcMain.handle("pet:reset-custom-atlas", () => resetAtlasToDefault());
-ipcMain.handle("pet:custom-atlas-status", () => ({
-  custom: fs.existsSync(customAtlasPath(app.getPath("userData"))),
-}));
+ipcMain.handle("pet:custom-atlas-status", () => {
+  const mode = resolveAppearanceMode(app.getPath("userData"));
+  return {
+    custom: mode !== "default",
+    mode,
+    manifest: mode === "lite" ? readLiteManifest(app.getPath("userData")) : null,
+  };
+});
+ipcMain.handle("pet:install-lite-pet", async (_event, payload) => {
+  const entries = Array.isArray(payload?.photos) ? payload.photos : null;
+  if (!entries) {
+    return { ok: false, error: "没有收到照片数据，请重新选择照片。" };
+  }
+  try {
+    const result = await installLitePet(entries, app.getPath("userData"), {
+      nativeImage,
+      ort: require("onnxruntime-node"),
+      modelPath: localModelPath(),
+    });
+    writeLog(`lite-pet installed: roles=${result.roles.join(",")}`);
+    reloadPetWindows();
+    return { ok: true, message: "新形象已就位，桌宠换上新照片啦。" };
+  } catch (error) {
+    writeLog(`lite-pet install failed: ${error.message}`);
+    return { ok: false, error: liteFeedback(error) };
+  }
+});
+
+function localModelPath() {
+  const packaged = path.join(process.resourcesPath, "app.asar.unpacked", "electron", "models", "u2netp.onnx");
+  if (app.isPackaged && fs.existsSync(packaged)) return packaged;
+  return path.join(__dirname, "models", "u2netp.onnx");
+}
+
+function liteFeedback(error) {
+  const raw = String(error?.message || error);
+  if (raw.includes("onnxruntime") || raw.includes("InferenceSession") || raw.includes("Tensor")) {
+    return "本地抠图引擎没能启动，请确认安装包完整后重试。";
+  }
+  return raw;
+}
 
 const singleInstanceLock = app.requestSingleInstanceLock();
 if (!singleInstanceLock) {

@@ -13,6 +13,7 @@ import { getSweetReply } from "./chatReplies.js";
 import { createMemoryGame, flipMemoryCard, hideMemoryMismatch, MEMORY_PAIRS } from "./memoryGame.js";
 import { randomRpsChoice, resolveRpsRound, RPS_CHOICES } from "./rpsGame.js";
 import { catchStar, createStarCatchGame, tickStarCatchGame } from "./starCatch.js";
+import { LITE_ROLE_OPTIONS } from "./litePetMode.js";
 
 gsap.registerPlugin(useGSAP);
 
@@ -83,8 +84,12 @@ export function CompanionDashboard() {
   const [memoryFeedback, setMemoryFeedback] = useState("");
   const [focusRemaining, setFocusRemaining] = useState(0);
   const [customAtlas, setCustomAtlas] = useState(false);
+  const [atlasMode, setAtlasMode] = useState("default");
+  const [liteManifest, setLiteManifest] = useState(null);
   const [atlasMessage, setAtlasMessage] = useState("");
   const [atlasDragOver, setAtlasDragOver] = useState(false);
+  const [litePhotos, setLitePhotos] = useState([]);
+  const [liteBusy, setLiteBusy] = useState(false);
   const starTimer = useRef(null);
   const focusTimer = useRef(null);
   const mismatchTimer = useRef(null);
@@ -115,7 +120,10 @@ export function CompanionDashboard() {
   useEffect(() => {
     let active = true;
     window.pet?.customAtlasStatus?.().then((status) => {
-      if (active) setCustomAtlas(Boolean(status?.custom));
+      if (!active) return;
+      setCustomAtlas(Boolean(status?.custom));
+      setAtlasMode(status?.mode || "default");
+      setLiteManifest(status?.mode === "lite" ? (status.manifest || null) : null);
     }).catch(() => {});
     return () => { active = false; };
   }, []);
@@ -158,6 +166,66 @@ export function CompanionDashboard() {
     }
     setAtlasMessage("");
     applyAtlasResult(await window.pet?.installCustomAtlas?.(filePath));
+  };
+
+  const handleLiteFiles = (event) => {
+    const files = Array.from(event.target?.files || []);
+    event.target.value = "";
+    if (!files.length) return;
+    setLitePhotos((current) => {
+      const next = [...current];
+      const usedRoles = new Set(next.map((item) => item.role).filter(Boolean));
+      for (const file of files) {
+        const sourcePath = window.pet?.pathForFile?.(file);
+        if (!sourcePath) {
+          setAtlasMessage("无法读取照片路径，请把照片放在本地磁盘后重试。");
+          continue;
+        }
+        const freeRole = LITE_ROLE_OPTIONS.map(([role]) => role).find((role) => !usedRoles.has(role)) || "";
+        if (freeRole) usedRoles.add(freeRole);
+        next.push({ sourcePath, role: freeRole, previewUrl: URL.createObjectURL(file), name: file.name });
+      }
+      return next;
+    });
+  };
+
+  const changeLiteRole = (index, role) => {
+    setLitePhotos((current) => current.map((item, position) => {
+      if (position === index) return { ...item, role };
+      if (item.role === role) return { ...item, role: current[index].role };
+      return item;
+    }));
+  };
+
+  const removeLitePhoto = (index) => {
+    setLitePhotos((current) => {
+      const removed = current[index];
+      if (removed?.previewUrl) URL.revokeObjectURL(removed.previewUrl);
+      return current.filter((_, position) => position !== index);
+    });
+  };
+
+  const installLitePhotos = async () => {
+    const entries = litePhotos.map((item) => ({ role: item.role, sourcePath: item.sourcePath }));
+    if (litePhotos.some((item) => !item.role)) {
+      setAtlasMessage("每张照片都需要选一个姿势类型，不需要的可以先移除。");
+      return;
+    }
+    if (!entries.some((entry) => entry.role === "idle")) {
+      setAtlasMessage("请为其中一张照片选择“日常站姿”，它是桌宠的基础形象。");
+      return;
+    }
+    setLiteBusy(true);
+    setAtlasMessage("正在本地抠图，请稍等几秒…");
+    const result = await window.pet?.installLitePet?.(entries);
+    setLiteBusy(false);
+    if (!result) return;
+    if (result.ok) {
+      setAtlasMessage(result.message);
+      refreshAtlasStatus();
+    } else {
+      setAtlasMessage(result.error);
+    }
   };
 
   useEffect(() => () => {
@@ -424,7 +492,7 @@ export function CompanionDashboard() {
                   <button type="button" disabled={checkInDone} onClick={() => record("checkin")}><CalendarCheck2 size={16} />{checkInDone ? "已签到" : "签到"}</button>
                 </div>
               </div>
-              <div className="hero-pet"><AtlasFrame row={3} frames={4} loopMs={1000} label="桌宠挥手" outfit={equipped.outfit} accessories={equipped.accessories} /><div className="pet-caption">{COSMETIC_ITEMS.find((item) => item.type === "outfit" && item.outfit === equipped.outfit)?.name || "日常白裙"}</div></div>
+              <div className="hero-pet">{atlasMode === "lite" && liteManifest?.images?.idle ? <div className="hero-lite-pet"><img src={`./assets/custom/lite/${liteManifest.images.idle}`} alt="桌宠" /></div> : <AtlasFrame row={3} frames={4} loopMs={1000} label="桌宠挥手" outfit={equipped.outfit} accessories={equipped.accessories} />}<div className="pet-caption">{atlasMode === "lite" ? "你的照片形象" : COSMETIC_ITEMS.find((item) => item.type === "outfit" && item.outfit === equipped.outfit)?.name || "日常白裙"}</div></div>
               <div className="hero-decoration deco-one">✦</div><div className="hero-decoration deco-two">♡</div>
             </section>
 
@@ -517,18 +585,44 @@ export function CompanionDashboard() {
             >
               <header>
                 <h2><ImagePlus size={17} />我的形象</h2>
-                <p>用自己的动作图集替换默认形象。导入全部在本地完成：图片不会被上传，也不会离开这台电脑。也可以把 PNG 直接拖进这一块。</p>
-                <span>{customAtlas ? "已使用自定义形象" : "默认形象"}</span>
+                <p>上传照片，本地自动抠图，让她以你想要的样子住在桌面上。照片只在本机处理，不会被上传，也不会离开这台电脑。</p>
+                <span>{atlasMode === "lite" ? "照片形象" : atlasMode === "atlas" ? "完整图集" : "默认形象"}</span>
               </header>
-              <div className="custom-atlas-actions">
-                <button type="button" onClick={chooseAtlasFile}><ImagePlus size={15} />选择图集 PNG…</button>
-                {customAtlas && <button type="button" onClick={resetAtlasToDefault}><RotateCcw size={15} />恢复默认形象</button>}
+              <div className="lite-photo-list">
+                {litePhotos.map((photo, index) => (
+                  <article key={photo.previewUrl} className="lite-photo-row">
+                    <span className="lite-photo-thumb"><img src={photo.previewUrl} alt="" /></span>
+                    <div className="lite-photo-copy"><strong>{photo.name}</strong><small>抠图在本机完成，约几秒一张</small></div>
+                    <select className="lite-role-select" value={photo.role} onChange={(event) => changeLiteRole(index, event.target.value)} aria-label="照片姿势类型">
+                      <option value="">选择姿势…</option>
+                      {LITE_ROLE_OPTIONS.map(([role, label]) => <option key={role} value={role}>{label}</option>)}
+                    </select>
+                    <button type="button" className="lite-remove" onClick={() => removeLitePhoto(index)} aria-label="移除照片">×</button>
+                  </article>
+                ))}
+              </div>
+              <div className="lite-wizard-actions">
+                <label className="lite-pick-label">
+                  <input type="file" accept="image/png,image/jpeg,image/webp" multiple hidden onChange={handleLiteFiles} />
+                  选择照片
+                </label>
+                <button type="button" className="lite-install-cta" disabled={liteBusy || !litePhotos.length} onClick={installLitePhotos}>{liteBusy ? "抠图中…" : "生成我的桌宠"}</button>
+                {atlasMode !== "default" && <button type="button" onClick={resetAtlasToDefault}><RotateCcw size={15} />恢复默认形象</button>}
               </div>
               {atlasMessage && <p className="interaction-feedback" role="status">{atlasMessage}</p>}
-              <small>图集需为 8 列 × 11 行、1536×2288 像素的 PNG；逐格动作规范见项目 docs/ATLAS-FORMAT.md。</small>
+              <details className="lite-advanced">
+                <summary>高级：导入完整 8×11 动作图集 PNG（社区形象包）</summary>
+                <div className="custom-atlas-actions">
+                  <button type="button" onClick={chooseAtlasFile}><ImagePlus size={15} />选择图集 PNG…</button>
+                </div>
+                <small>图集需为 8 列 × 11 行、1536×2288 像素的 PNG；逐格动作规范见项目 docs/ATLAS-FORMAT.md。也可以把图集 PNG 直接拖进这一块。</small>
+              </details>
             </section>
             <section className="wardrobe-section">
               <header className="wardrobe-heading"><div><h2><Sparkles size={17} />衣橱</h2><p>试穿预览和桌面浮窗同步。衣服会贴合角色每个动作和视线方向。</p></div><div className="wardrobe-balance"><span>亲密度 <b>{save.stats.affection}</b></span><span>星星 <b>{save.currencies.stars}</b></span></div></header>
+              {atlasMode === "lite" ? (
+                <div className="wardrobe-lite-note">当前使用的是你的照片形象：衣橱的染色服饰是针对默认角色预生成的，暂不适用于照片形象。想体验完整换装，可以先“恢复默认形象”，或导入完整 8×11 图集。</div>
+              ) : (
               <div className="wardrobe-grid">
                 {COSMETIC_ITEMS.map((item) => {
                   const owned = save.progression.collection.includes(item.id);
@@ -552,7 +646,8 @@ export function CompanionDashboard() {
                   );
                 })}
               </div>
-              <div className="accessory-slot-controls" aria-label="配饰部位管理">{[["head", "头部"], ["neck", "颈部"], ["prop", "肩挂"]].map(([slot, label]) => <button key={slot} type="button" disabled={equipped.accessories[slot] === "none"} onClick={() => removeAccessory(slot)}>取下{label}</button>)}</div>
+              )}
+              <div className="accessory-slot-controls" aria-label="配饰部位管理">{[["head", "头部"], ["neck", "颈部"], ["prop", "肩挂"]].map(([slot, label]) => <button key={slot} type="button" disabled={equipped.accessories[slot] === "none" || atlasMode === "lite"} onClick={() => removeAccessory(slot)}>取下{label}</button>)}</div>
             </section>
             <section className="action-collection-section">
               <header><h2><Gamepad2 size={17} />动作收藏册</h2><p>触发过的动作会记在这里；点卡片可以再次播放并收录。</p><span>{collectedActions.size}/{COLLECTION_ACTIONS.length}</span></header>

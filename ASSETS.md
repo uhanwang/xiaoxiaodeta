@@ -2,6 +2,10 @@
 
 本仓库 `public/assets/` 内的默认角色素材（动作图集 `atlas/`、姿态图 `sprites/`、手势图 `actions/`、衣橱配色 `wardrobe/`、吉祥物图标 `brand/`）以及 `docs/screenshots/` 中的截图均为 **AI 图像生成服务绘制的原创 Q 版角色**，不是对任何现存 IP 角色的复刻。
 
+## 内置模型
+
+`electron/models/u2netp.onnx` 是 [U²-Net](https://github.com/xuebinqin/U-2-Net) 的小型版（u2netp），用于照片导入时的本地抠图，按 **Apache License 2.0** 随本仓库分发，版权归 U²-Net 原作者所有。
+
 ## 授权
 
 - 这些素材随本项目一并以 **CC BY 4.0** 授权：你可以自由使用、修改、再分发，只需注明出处（链接回本仓库即可）。

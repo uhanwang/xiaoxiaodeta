@@ -1,6 +1,6 @@
 {
   "name": "xiaoxiaodeta",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "小小的她 · 安静、离线、可拖动的桌面陪伴伙伴，支持自定义形象导入、文字互动和本地成长玩法。",
   "private": true,
   "type": "module",
@@ -11,7 +11,7 @@
     "build:desktop": "npm run build:portable",
     "build:portable": "npm run build && electron-builder --win dir && pwsh -File scripts/build-portable-launcher.ps1 -PackageDirectory artifacts/desktop-1.4.0/win-unpacked && pwsh -File scripts/package-portable.ps1 -PackageDirectory artifacts/desktop-1.4.0/win-unpacked",
     "capture:desktop": "concurrently -k --success first \"vite --host 127.0.0.1 --port 4173 --strictPort\" \"wait-on http://127.0.0.1:4173 && electron electron/main.cjs --dev --capture\"",
-    "test": "node --test tests/pet-machine.test.mjs tests/progression.test.mjs tests/chat-replies.test.mjs tests/action-registry.test.mjs tests/memory-game.test.mjs tests/drag-coalescer.test.mjs tests/drag-session.test.mjs tests/rps-game.test.mjs tests/star-catch.test.mjs tests/pet-hit-area.test.cjs tests/custom-assets.test.mjs tests/custom-atlas-feedback.test.mjs",
+    "test": "node --test tests/pet-machine.test.mjs tests/progression.test.mjs tests/chat-replies.test.mjs tests/action-registry.test.mjs tests/memory-game.test.mjs tests/drag-coalescer.test.mjs tests/drag-session.test.mjs tests/rps-game.test.mjs tests/star-catch.test.mjs tests/pet-hit-area.test.cjs tests/custom-assets.test.mjs tests/custom-atlas-feedback.test.mjs tests/image-ops.test.mjs tests/lite-pet.test.mjs tests/lite-mode.test.mjs",
     "test:atlas": "node scripts/test-atlas.cjs",
     "test:wardrobe": "node scripts/wardrobe-assets.mjs test",
     "assets:wardrobe": "node scripts/wardrobe-assets.mjs build",
@@ -23,6 +23,7 @@
     "@vitejs/plugin-react": "5.0.4",
     "gsap": "^3.15.0",
     "lucide-react": "^0.544.0",
+    "onnxruntime-node": "^1.30.0",
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "vite": "6.4.2"
@@ -46,6 +47,8 @@
       "electron/**/*",
       "src/progression.js",
       "package.json",
+      "node_modules/onnxruntime-node/**/*",
+      "node_modules/onnxruntime-common/**/*",
       "!node_modules/lucide-react/**/*",
       "!node_modules/react/**/*",
       "!node_modules/react-dom/**/*",
@@ -53,7 +56,10 @@
       "!node_modules/@vitejs/plugin-react/**/*"
     ],
     "asarUnpack": [
-      "dist/client/assets/**/*"
+      "dist/client/assets/**/*",
+      "electron/models/**/*",
+      "node_modules/onnxruntime-node/**/*",
+      "node_modules/onnxruntime-common/**/*"
     ],
     "extraResources": [
       {

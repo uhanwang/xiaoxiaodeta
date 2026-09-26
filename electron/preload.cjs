@@ -31,6 +31,7 @@ contextBridge.exposeInMainWorld("pet", {
   quit: () => ipcRenderer.send("pet:quit"),
   chooseCustomAtlas: () => ipcRenderer.invoke("pet:choose-custom-atlas"),
   installCustomAtlas: (filePath) => ipcRenderer.invoke("pet:install-custom-atlas", { path: String(filePath || "") }),
+  installLitePet: (photos) => ipcRenderer.invoke("pet:install-lite-pet", { photos }),
   resetCustomAtlas: () => ipcRenderer.invoke("pet:reset-custom-atlas"),
   customAtlasStatus: () => ipcRenderer.invoke("pet:custom-atlas-status"),
   pathForFile: (file) => {

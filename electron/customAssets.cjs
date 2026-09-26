@@ -1,12 +1,25 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
+const { liteAssetPath, liteManifestPath, readActiveMode } = require("./litePet.cjs");
+
 const CUSTOM_ATLAS_ROUTE = "assets/atlas/pet-actions-installed.webp";
 const CUSTOM_ATLAS_FILENAME = "pet-actions-installed.png";
+const LITE_ROUTE_PREFIX = "assets/custom/lite/";
 const EXPECTED_ATLAS_SIZE = Object.freeze({ width: 1536, height: 2288 });
 
 function customAtlasPath(userDataPath) {
   return path.join(userDataPath, "custom-pet", CUSTOM_ATLAS_FILENAME);
+}
+
+// Resolves which appearance the pet should render: an installed full atlas
+// beats a lite photo pet unless the user explicitly switched via marker.
+function resolveAppearanceMode(userDataPath) {
+  const markerMode = readActiveMode(userDataPath);
+  if (markerMode) return markerMode;
+  if (fs.existsSync(customAtlasPath(userDataPath))) return "atlas";
+  if (fs.existsSync(liteManifestPath(userDataPath))) return "lite";
+  return "default";
 }
 
 function resolveClientAsset(relativePath, clientRoot, userDataPath) {
@@ -23,6 +36,10 @@ function resolveClientAsset(relativePath, clientRoot, userDataPath) {
   const bundledPath = path.resolve(root, ...normalizedPath.split("/"));
   if (bundledPath !== root && !bundledPath.startsWith(`${root}${path.sep}`)) return null;
 
+  if (normalizedPath.startsWith(LITE_ROUTE_PREFIX)) {
+    const litePath = liteAssetPath(userDataPath, normalizedPath.slice(LITE_ROUTE_PREFIX.length));
+    if (litePath) return litePath;
+  }
   if (normalizedPath === CUSTOM_ATLAS_ROUTE) {
     const overridePath = customAtlasPath(userDataPath);
     if (fs.existsSync(overridePath)) return overridePath;
@@ -95,5 +112,6 @@ module.exports = {
   installCustomAtlas,
   parseCustomAssetCommand,
   resetCustomAtlas,
+  resolveAppearanceMode,
   resolveClientAsset,
 };
