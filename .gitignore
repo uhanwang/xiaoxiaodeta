@@ -1,0 +1,39 @@
+# Dependencies and local build output
+node_modules/
+.venv/
+.cache/
+.local-assets/
+dist/
+release/
+artifacts/
+backups/
+video/
+
+# User-specific photos, generated pet packs, and local saves
+public/assets/source/
+public/assets/user-generated/
+custom-assets/
+user-data/
+*.pfx
+*.p12
+*.pem
+*.key
+.env
+.env.*
+!.env.example
+
+# Private/source sprite experiments and large derived packages
+hatch-pet-v2-20260923/
+hatch-pet-actions-v2/
+generated-action-strips-v3/
+generated-action-strips-v3_*.zip
+scripts/build_hybrid_codex_pet_atlas.py
+
+# Local runtime data
+pet-state.json
+pet-save-*.json
+desktop-pet.log
+
+# Local workspace files
+.zcode/
+_preserved/

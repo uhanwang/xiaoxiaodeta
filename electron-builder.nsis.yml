@@ -1,0 +1,36 @@
+appId: com.xiaoxiaodeta.pet
+productName: 小小的她
+electronDist: node_modules/electron/dist
+directories:
+  output: artifacts/installer-1.4.0
+files:
+  - dist/client/**/*
+  - electron/**/*
+  - src/progression.js
+  - package.json
+extraResources:
+  - from: public/assets/sprites/idle.png
+    to: assets/sprites/idle.png
+  - from: public/assets/brand/mascot-icon.png
+    to: assets/brand/mascot-icon.png
+  - from: launcher/shortcut-icon.ico
+    to: shortcut-icon.ico
+win:
+  icon: launcher/shortcut-icon.ico
+  target:
+    - target: nsis
+      arch:
+        - x64
+nsis:
+  oneClick: true
+  perMachine: false
+  allowElevation: false
+  allowToChangeInstallationDirectory: false
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: 小小的她
+  deleteAppDataOnUninstall: false
+  installerIcon: launcher/shortcut-icon.ico
+  uninstallerIcon: launcher/shortcut-icon.ico
+  installerHeaderIcon: launcher/shortcut-icon.ico
+  artifactName: XiaoXiaoDeTa-${version}-Setup.${ext}
