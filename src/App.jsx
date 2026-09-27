@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { autoStateForIdleTime } from "./petMachine.js";
 import { useProgressSave } from "./useProgressSave.js";
-import { PET_ACTIONS, directionForGaze, gazeIndexFromPoint } from "./actionRegistry.js";
+import { ATLAS_ACTION_FALLBACKS, ATLAS_STATE_FALLBACKS, PET_ACTIONS, directionForGaze, gazeIndexFromPoint } from "./actionRegistry.js";
 import { AtlasFrame } from "./AtlasFrame.jsx";
 import { LitePetSprite } from "./LitePetSprite.jsx";
 import { createDragSession, updateDragSession } from "./dragSession.js";
@@ -39,6 +39,8 @@ export function App() {
   const [actionEffect, setActionEffect] = useState("");
   const [gazeIndex, setGazeIndex] = useState(0);
   const [appearanceMode, setAppearanceMode] = useState("default");
+  const [outfitVariants, setOutfitVariants] = useState([]);
+  const [atlasAnchors, setAtlasAnchors] = useState(null);
   const [liteManifest, setLiteManifest] = useState(null);
   const lastInteraction = useRef(Date.now());
   const temporaryTimer = useRef(null);
@@ -95,6 +97,8 @@ export function App() {
     window.pet?.customAtlasStatus?.().then((status) => {
       setAppearanceMode(status?.mode || "default");
       setLiteManifest(status?.mode === "lite" ? (status.manifest || { images: {} }) : null);
+      setOutfitVariants(Array.isArray(status?.outfitVariants) ? status.outfitVariants : []);
+      setAtlasAnchors(status?.anchors || null);
     }).catch(() => {});
   }, []);
 
@@ -382,30 +386,20 @@ export function App() {
   const activeAtlasAction = PET_ACTIONS.find((action) => action.id === atlasActionId) || PET_ACTIONS[0];
   const gaze = directionForGaze(gazeIndex);
   const equipped = save.progression.equipped || { outfit: "default", accessory: "none" };
-  // A custom atlas belongs to the user's own character: never overlay the
-  // default wardrobe tints or default gesture sheets on top of it.
+  // A custom atlas belongs to the user's own character. Wardrobe variants are
+  // user-generated files, so the equipped outfit passes through when one
+  // exists; without a variant (or anchors for accessories) fall back to the
+  // user's own base look — never to the bundled default character art.
   const isCustomAtlas = appearanceMode === "atlas";
-  const renderOutfit = isCustomAtlas ? "default" : equipped.outfit;
-  const renderAccessories = isCustomAtlas ? { head: "none", neck: "none", prop: "none" } : equipped.accessories;
-  const gestureFallbacks = {
-    heart: { row: 3, frames: 4, loopMs: 880 },
-    celebrate: { row: 4, frames: 5, loopMs: 820 },
-    shy: { row: 6, frames: 6, loopMs: 1500 },
-    "rps-rock": { row: 3, frames: 4, loopMs: 880 },
-    "rps-scissors": { row: 3, frames: 4, loopMs: 880 },
-    "rps-paper": { row: 3, frames: 4, loopMs: 880 },
-  };
-  const gestureFallback = isCustomAtlas && activeAtlasAction.sprite ? gestureFallbacks[activeAtlasAction.id] : null;
+  const renderOutfit = isCustomAtlas && !outfitVariants.includes(equipped.outfit) ? "default" : equipped.outfit;
+  const renderAccessories = isCustomAtlas && !atlasAnchors
+    ? { head: "none", neck: "none", prop: "none" }
+    : equipped.accessories;
+  const renderAnchors = isCustomAtlas ? atlasAnchors : null;
+  const gestureFallback = isCustomAtlas && activeAtlasAction.sprite ? ATLAS_ACTION_FALLBACKS[activeAtlasAction.id] : null;
   // In custom-atlas mode the bundled legacy sprites (sit/sleep/drag/happy) would
   // flash the default character, so every state maps onto the user's own atlas.
-  const stateFallbacks = {
-    sit: { row: 6, frames: 6, loopMs: 1500 },
-    sleep: { row: 6, frames: 6, loopMs: 1500 },
-    drag: { row: 0, frames: 7, loopMs: 1400 },
-    happy: { row: 3, frames: 4, loopMs: 880 },
-    blink: { row: 0, frameOffset: 0, frames: 1 },
-  };
-  const stateFallback = isCustomAtlas ? stateFallbacks[state] : null;
+  const stateFallback = isCustomAtlas ? ATLAS_STATE_FALLBACKS[state] : null;
 
   return (
     <main className="pet-window" onPointerDown={() => { if (menuOpen) setMenuOpen(false); }}>
@@ -430,15 +424,15 @@ export function App() {
           effect={actionEffect}
         />
       ) : state === "atlas-action" && gestureFallback ? (
-        <AtlasFrame row={gestureFallback.row} frames={gestureFallback.frames} loopMs={gestureFallback.loopMs} className={`pet-atlas-sprite action-${actionEffect}`} label={activeAtlasAction.label} outfit={renderOutfit} accessories={renderAccessories} />
+        <AtlasFrame row={gestureFallback.row} frames={gestureFallback.frames} loopMs={gestureFallback.loopMs} className={`pet-atlas-sprite action-${actionEffect}`} label={activeAtlasAction.label} outfit={renderOutfit} accessories={renderAccessories} anchors={renderAnchors} />
       ) : state === "atlas-action" ? (
-        <AtlasFrame row={activeAtlasAction.row} sprite={activeAtlasAction.sprite} columns={activeAtlasAction.columns} sheetRows={activeAtlasAction.sheetRows} frames={activeAtlasAction.frames} frameSequence={activeAtlasAction.frameSequence} gestureChoice={activeAtlasAction.gestureChoice} loopMs={activeAtlasAction.loopMs} className={`pet-atlas-sprite ${activeAtlasAction.sprite ? "sheet-action" : ""} action-${actionEffect}`} label={activeAtlasAction.label} outfit={renderOutfit} accessories={renderAccessories} />
+        <AtlasFrame row={activeAtlasAction.row} sprite={activeAtlasAction.sprite} columns={activeAtlasAction.columns} sheetRows={activeAtlasAction.sheetRows} frames={activeAtlasAction.frames} frameSequence={activeAtlasAction.frameSequence} gestureChoice={activeAtlasAction.gestureChoice} loopMs={activeAtlasAction.loopMs} className={`pet-atlas-sprite ${activeAtlasAction.sprite ? "sheet-action" : ""} action-${actionEffect}`} label={activeAtlasAction.label} outfit={renderOutfit} accessories={renderAccessories} anchors={renderAnchors} />
         ) : stateFallback ? (
-          <AtlasFrame row={stateFallback.row} frameOffset={stateFallback.frameOffset} frames={stateFallback.frames} loopMs={stateFallback.loopMs} className="pet-atlas-sprite" label={`桌宠${state === "sleep" ? "睡觉" : state === "sit" ? "坐下" : "回应"}`} outfit={renderOutfit} accessories={renderAccessories} />
+          <AtlasFrame row={stateFallback.row} frameOffset={stateFallback.frameOffset} frames={stateFallback.frames} loopMs={stateFallback.loopMs} className="pet-atlas-sprite" label={`桌宠${state === "sleep" ? "睡觉" : state === "sit" ? "坐下" : "回应"}`} outfit={renderOutfit} accessories={renderAccessories} anchors={renderAnchors} />
         ) : state === "idle" ? (
-          <AtlasFrame row={gaze.row} frameOffset={gaze.column} frames={1} className="pet-atlas-sprite" label={`桌宠看向${gaze.label}`} outfit={renderOutfit} accessories={renderAccessories} />
+          <AtlasFrame row={gaze.row} frameOffset={gaze.column} frames={1} className="pet-atlas-sprite" label={`桌宠看向${gaze.label}`} outfit={renderOutfit} accessories={renderAccessories} anchors={renderAnchors} />
         ) : (
-          <AtlasFrame row={0} sprite={sprites[state] || sprites.idle} columns={1} sheetRows={1} frames={1} className={`pet-atlas-sprite legacy-sprite state-${state}`} label={`桌宠${state === "sleep" ? "睡觉" : state === "sit" ? "坐下" : "回应"}`} outfit={renderOutfit} accessories={renderAccessories} />
+          <AtlasFrame row={0} sprite={sprites[state] || sprites.idle} columns={1} sheetRows={1} frames={1} className={`pet-atlas-sprite legacy-sprite state-${state}`} label={`桌宠${state === "sleep" ? "睡觉" : state === "sit" ? "坐下" : "回应"}`} outfit={renderOutfit} accessories={renderAccessories} anchors={renderAnchors} />
         )}
         {actionEffect && <div className={`interaction-effects effect-${actionEffect}`} aria-hidden="true"><i>{actionEffect === "feed" ? "🍪" : actionEffect === "pet" ? "♡" : actionEffect === "hug" ? "♥" : actionEffect === "wake" ? "✦" : "✧"}</i><i>{actionEffect === "feed" ? "✦" : actionEffect === "pet" ? "✧" : "♡"}</i><i>{actionEffect === "hug" ? "♡" : "✦"}</i></div>}
       </button>

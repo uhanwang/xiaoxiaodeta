@@ -6,7 +6,7 @@ import {
   Heart, ImagePlus, MessageCircle, Moon, RotateCcw, Sparkles, Star, Timer, Trophy, X,
 } from "lucide-react";
 import { AtlasFrame } from "./AtlasFrame.jsx";
-import { PET_ACTIONS } from "./actionRegistry.js";
+import { ATLAS_ACTION_FALLBACKS, ATLAS_STATE_FALLBACKS, PET_ACTIONS } from "./actionRegistry.js";
 import { COSMETIC_ITEMS, DAILY_TASKS, FOOD_ITEMS, WEEKLY_TASKS, localDateKey } from "./progression.js";
 import { useProgressSave } from "./useProgressSave.js";
 import { getSweetReply } from "./chatReplies.js";
@@ -85,6 +85,10 @@ export function CompanionDashboard() {
   const [focusRemaining, setFocusRemaining] = useState(0);
   const [customAtlas, setCustomAtlas] = useState(false);
   const [atlasMode, setAtlasMode] = useState("default");
+  const [atlasAnchors, setAtlasAnchors] = useState(null);
+  const [outfitVariants, setOutfitVariants] = useState([]);
+  const [closetSlots, setClosetSlots] = useState([]);
+  const [closetBusy, setClosetBusy] = useState(false);
   const [liteManifest, setLiteManifest] = useState(null);
   const [atlasMessage, setAtlasMessage] = useState("");
   const [atlasDragOver, setAtlasDragOver] = useState(false);
@@ -124,9 +128,18 @@ export function CompanionDashboard() {
       setCustomAtlas(Boolean(status?.custom));
       setAtlasMode(status?.mode || "default");
       setLiteManifest(status?.mode === "lite" ? (status.manifest || null) : null);
+      setAtlasAnchors(status?.anchors || null);
+      setOutfitVariants(Array.isArray(status?.outfitVariants) ? status.outfitVariants : []);
+    }).catch(() => {});
+    window.pet?.closetList?.().then((data) => {
+      if (active) setClosetSlots(Array.isArray(data?.slots) ? data.slots : []);
     }).catch(() => {});
     return () => { active = false; };
   }, []);
+
+  const refreshCloset = () => {
+    window.pet?.closetList?.().then((data) => setClosetSlots(Array.isArray(data?.slots) ? data.slots : [])).catch(() => {});
+  };
 
   useEffect(() => window.pet?.onQPetProgress?.((progress) => {
     if (progress?.finished && !progress.error) {
@@ -134,7 +147,10 @@ export function CompanionDashboard() {
         setCustomAtlas(Boolean(status?.custom));
         setAtlasMode(status?.mode || "default");
         setLiteManifest(status?.mode === "lite" ? (status.manifest || null) : null);
+        setAtlasAnchors(status?.anchors || null);
+        setOutfitVariants(Array.isArray(status?.outfitVariants) ? status.outfitVariants : []);
       }).catch(() => {});
+      refreshCloset();
     }
   }), []);
 
@@ -238,8 +254,44 @@ export function CompanionDashboard() {
     }
   };
 
-  const startGuideAssembly = () => {
-    window.pet?.openOnboarding?.();
+  const startGuideAssembly = (outfit) => {
+    window.pet?.openOnboarding?.(outfit);
+  };
+
+  const saveCurrentLook = async () => {
+    setClosetBusy(true);
+    const result = await window.pet?.closetSave?.();
+    setClosetBusy(false);
+    if (result?.ok) {
+      setAtlasMessage(result.message || "已保存。");
+      refreshCloset();
+    } else if (result?.error) {
+      setAtlasMessage(result.error);
+    }
+  };
+
+  const switchClosetSlot = async (slotId) => {
+    setClosetBusy(true);
+    const result = await window.pet?.closetSwitch?.(slotId);
+    setClosetBusy(false);
+    if (result?.ok) {
+      setAtlasMessage(result.message || "已切换形象。");
+      refreshCloset();
+    } else if (result?.error) {
+      setAtlasMessage(result.error);
+    }
+  };
+
+  const deleteClosetSlot = async (slotId) => {
+    setClosetBusy(true);
+    const result = await window.pet?.closetDelete?.(slotId);
+    setClosetBusy(false);
+    if (result?.ok) {
+      setAtlasMessage(result.message || "已删除。");
+      refreshCloset();
+    } else if (result?.error) {
+      setAtlasMessage(result.error);
+    }
   };
 
   useEffect(() => () => {
@@ -506,7 +558,7 @@ export function CompanionDashboard() {
                   <button type="button" disabled={checkInDone} onClick={() => record("checkin")}><CalendarCheck2 size={16} />{checkInDone ? "已签到" : "签到"}</button>
                 </div>
               </div>
-              <div className="hero-pet">{atlasMode === "lite" && liteManifest?.images?.idle ? <div className="hero-lite-pet"><img src={`./assets/custom/lite/${liteManifest.images.idle}`} alt="桌宠" /></div> : <AtlasFrame row={3} frames={4} loopMs={1000} label="桌宠挥手" outfit={equipped.outfit} accessories={equipped.accessories} />}<div className="pet-caption">{atlasMode === "lite" ? "你的照片形象" : COSMETIC_ITEMS.find((item) => item.type === "outfit" && item.outfit === equipped.outfit)?.name || "日常白裙"}</div></div>
+              <div className="hero-pet">{atlasMode === "lite" && liteManifest?.images?.idle ? <div className="hero-lite-pet"><img src={`./assets/custom/lite/${liteManifest.images.idle}`} alt="桌宠" /></div> : <AtlasFrame row={3} frames={4} loopMs={1000} label="桌宠挥手" outfit={equipped.outfit} accessories={equipped.accessories} anchors={atlasAnchors} />}<div className="pet-caption">{atlasMode === "lite" ? "你的照片形象" : COSMETIC_ITEMS.find((item) => item.type === "outfit" && item.outfit === equipped.outfit)?.name || "日常白裙"}</div></div>
               <div className="hero-decoration deco-one">✦</div><div className="hero-decoration deco-two">♡</div>
             </section>
 
@@ -584,7 +636,17 @@ export function CompanionDashboard() {
         )}
 
         {tab === "actions" && (
-          <div className="actions-page"><div className="page-heading"><span className="eyebrow">MOTION LIBRARY</span><h1>她的动作收藏</h1><p>共 {COLLECTION_ACTIONS.length} 组动作 · 已收录 {collectedActions.size} 组；猜拳会在桌面亮出石头、剪刀或布。</p></div><div className="action-grid">{PET_ACTIONS.map((action) => <button key={action.id} className="action-card" type="button" onClick={() => playAndCollectAction(action.id)}><div className="action-preview"><AtlasFrame row={action.row} sprite={action.sprite} columns={action.columns} sheetRows={action.sheetRows} frames={action.frames} frameSequence={action.frameSequence} gestureChoice={action.gestureChoice} loopMs={action.loopMs} label={action.label} outfit={equipped.outfit} accessories={equipped.accessories} /></div><span className="action-group">{action.group}</span><strong>{action.label}</strong><small>{collectedActions.has(action.id) ? "已收录" : `${action.frames} 帧动画 · 点击收录`}</small></button>)}{LEGACY_ACTIONS.map(({ id, label, Icon }) => <button key={id} className="action-card legacy-action" type="button" onClick={() => playAndCollectAction(id)}><div className="action-preview"><img src={`./assets/sprites/${id}.png`} alt="" /></div><span className="action-group">原有动作</span><strong><Icon size={15} />{label}</strong><small>{collectedActions.has(id) ? "已收录" : "保留旧版素材 · 点击收录"}</small></button>)}</div></div>
+          <div className="actions-page"><div className="page-heading"><span className="eyebrow">MOTION LIBRARY</span><h1>她的动作收藏</h1><p>共 {COLLECTION_ACTIONS.length} 组动作 · 已收录 {collectedActions.size} 组；猜拳会在桌面亮出石头、剪刀或布。</p></div><div className="action-grid">{PET_ACTIONS.map((action) => {
+            const fallback = customAtlas && action.sprite ? ATLAS_ACTION_FALLBACKS[action.id] : null;
+            return <button key={action.id} className="action-card" type="button" onClick={() => playAndCollectAction(action.id)}><div className="action-preview">{fallback
+              ? <AtlasFrame row={fallback.row} frames={fallback.frames} loopMs={fallback.loopMs} label={action.label} outfit={equipped.outfit} accessories={equipped.accessories} anchors={atlasAnchors} />
+              : <AtlasFrame row={action.row} sprite={action.sprite} columns={action.columns} sheetRows={action.sheetRows} frames={action.frames} frameSequence={action.frameSequence} gestureChoice={action.gestureChoice} loopMs={action.loopMs} label={action.label} outfit={equipped.outfit} accessories={equipped.accessories} anchors={atlasAnchors} />}</div><span className="action-group">{action.group}</span><strong>{action.label}</strong><small>{collectedActions.has(action.id) ? "已收录" : `${action.frames} 帧动画 · 点击收录`}</small></button>;
+          })}{LEGACY_ACTIONS.map(({ id, label, Icon }) => {
+            const stateFallback = customAtlas ? ATLAS_STATE_FALLBACKS[id] : null;
+            return <button key={id} className="action-card legacy-action" type="button" onClick={() => playAndCollectAction(id)}><div className="action-preview">{stateFallback
+              ? <AtlasFrame row={stateFallback.row} frames={stateFallback.frames} loopMs={stateFallback.loopMs} label={label} outfit={equipped.outfit} accessories={equipped.accessories} anchors={atlasAnchors} />
+              : <img src={`./assets/sprites/${id}.png`} alt="" />}</div><span className="action-group">原有动作</span><strong><Icon size={15} />{label}</strong><small>{collectedActions.has(id) ? "已收录" : "保留旧版素材 · 点击收录"}</small></button>;
+          })}</div></div>
         )}
 
         {tab === "collection" && (
@@ -610,6 +672,30 @@ export function CompanionDashboard() {
                   {atlasMode !== "default" && <button type="button" className="lite-pick-label" onClick={resetAtlasToDefault}><RotateCcw size={15} />恢复默认形象</button>}
                 </div>
               </div>
+              {atlasMode === "atlas" && (
+                <div className="closet-block">
+                  <div className="closet-head">
+                    <div><strong>形象柜</strong><small>每次生成的形象都会自动存进来，随时一键切换；已生成的换装跟着形象走。</small></div>
+                    <button type="button" disabled={closetBusy} onClick={saveCurrentLook}>保存当前形象</button>
+                  </div>
+                  {closetSlots.length ? (
+                    <div className="closet-grid">
+                      {closetSlots.map((slot) => (
+                        <article key={slot.id} className="closet-slot">
+                          <span className="closet-thumb" style={{ backgroundImage: `url("./assets/custom/closet/${slot.id}.png")` }} aria-hidden="true" />
+                          <div className="closet-copy"><strong>{slot.name}</strong></div>
+                          <div className="closet-actions">
+                            <button type="button" disabled={closetBusy} onClick={() => switchClosetSlot(slot.id)}>穿上</button>
+                            <button type="button" className="closet-delete" disabled={closetBusy} onClick={() => deleteClosetSlot(slot.id)}>删除</button>
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="closet-empty">还没有保存的形象。用向导生成一个，或点「保存当前形象」把现在的样子存起来。</p>
+                  )}
+                </div>
+              )}
               <details className="lite-simple">
                 <summary>简易版：照片直接秒变（本地抠图，动作较简单、边缘较粗）</summary>
                 <div className="lite-photo-list">
@@ -645,34 +731,43 @@ export function CompanionDashboard() {
             </section>
             <section className="wardrobe-section">
               <header className="wardrobe-heading"><div><h2><Sparkles size={17} />衣橱</h2><p>试穿预览和桌面浮窗同步。衣服会贴合角色每个动作和视线方向。</p></div><div className="wardrobe-balance"><span>亲密度 <b>{save.stats.affection}</b></span><span>星星 <b>{save.currencies.stars}</b></span></div></header>
-              {atlasMode !== "default" ? (
-                <div className="wardrobe-lite-note">当前使用的是你自己的形象：衣橱的染色服饰是针对默认角色预生成的，不适用于自定义形象。想要完整换装体验，可以「恢复默认形象」。</div>
+              {atlasMode === "lite" ? (
+                <div className="wardrobe-lite-note">当前使用的是照片简易形象：衣橱和配饰需要完整的动作图集。可以用上面的「专属形象向导」生成完整形象来解锁换装，或「恢复默认形象」。</div>
               ) : (
               <div className="wardrobe-grid">
                 {COSMETIC_ITEMS.map((item) => {
+                  const customOutfitPending = atlasMode === "atlas" && item.type === "outfit" && !outfitVariants.includes(item.outfit);
                   const owned = save.progression.collection.includes(item.id);
-                  const wearing = item.type === "outfit" ? equipped.outfit === item.outfit : equipped.accessories[item.slot] === item.id;
+                  const wearing = item.type === "outfit"
+                    ? equipped.outfit === item.outfit && (item.outfit === "default" || !customOutfitPending)
+                    : equipped.accessories[item.slot] === item.id;
                   const affectionLocked = save.stats.affection < item.affection;
                   const canBuy = !owned && !affectionLocked && save.currencies.stars >= item.price;
                   const previewOutfit = item.type === "outfit" ? item.outfit : equipped.outfit;
                   const previewAccessories = item.type === "accessory" ? { ...equipped.accessories, [item.slot]: item.id } : equipped.accessories;
-                  const subtitle = owned
-                    ? (wearing ? "正在穿戴" : "点击试穿")
-                    : affectionLocked ? "亲密度 " + item.affection + " 解锁"
-                      : "星星 " + item.price + " · 亲密度 " + item.affection;
+                  const subtitle = customOutfitPending
+                    ? "未生成 · 用你的角色生成这套"
+                    : owned
+                      ? (wearing ? "正在穿戴" : "点击试穿")
+                      : affectionLocked ? "亲密度 " + item.affection + " 解锁"
+                        : "星星 " + item.price + " · 亲密度 " + item.affection;
                   return (
-                    <article key={item.id} className={"wardrobe-card " + (wearing ? "equipped" : "") + (!owned && !canBuy ? " unavailable" : "")}>
-                      <div className="wardrobe-preview"><AtlasFrame row={3} frames={4} loopMs={1180} label={item.name + "试穿预览"} outfit={previewOutfit} accessories={previewAccessories} /></div>
+                    <article key={item.id} className={"wardrobe-card " + (wearing ? "equipped" : "") + (customOutfitPending ? " pending" : "") + (!owned && !canBuy && !customOutfitPending ? " unavailable" : "")}>
+                      <div className="wardrobe-preview"><AtlasFrame row={3} frames={4} loopMs={1180} label={item.name + "试穿预览"} outfit={previewOutfit} accessories={previewAccessories} anchors={atlasAnchors} /></div>
                       <div className="wardrobe-item-copy"><strong>{item.name}</strong><small>{subtitle}</small></div>
-                      <button type="button" disabled={!owned && !canBuy} onClick={() => chooseCosmetic(item)}>
-                        {owned ? wearing ? "已穿上" : "穿上" : affectionLocked ? "待解锁" : save.currencies.stars < item.price ? "星星不足" : "兑换"}
-                      </button>
+                      {customOutfitPending ? (
+                        <button type="button" onClick={() => startGuideAssembly(item.outfit)}>生成这套</button>
+                      ) : (
+                        <button type="button" disabled={!owned && !canBuy} onClick={() => chooseCosmetic(item)}>
+                          {owned ? wearing ? "已穿上" : "穿上" : affectionLocked ? "待解锁" : save.currencies.stars < item.price ? "星星不足" : "兑换"}
+                        </button>
+                      )}
                     </article>
                   );
                 })}
               </div>
               )}
-              <div className="accessory-slot-controls" aria-label="配饰部位管理">{[["head", "头部"], ["neck", "颈部"], ["prop", "肩挂"]].map(([slot, label]) => <button key={slot} type="button" disabled={equipped.accessories[slot] === "none" || atlasMode !== "default"} onClick={() => removeAccessory(slot)}>取下{label}</button>)}</div>
+              <div className="accessory-slot-controls" aria-label="配饰部位管理">{[["head", "头部"], ["neck", "颈部"], ["prop", "肩挂"]].map(([slot, label]) => <button key={slot} type="button" disabled={equipped.accessories[slot] === "none" || atlasMode === "lite"} onClick={() => removeAccessory(slot)}>取下{label}</button>)}</div>
             </section>
             <section className="action-collection-section">
               <header><h2><Gamepad2 size={17} />动作收藏册</h2><p>触发过的动作会记在这里；点卡片可以再次播放并收录。</p><span>{collectedActions.size}/{COLLECTION_ACTIONS.length}</span></header>

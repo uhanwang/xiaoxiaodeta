@@ -36,15 +36,32 @@ function PropAccessory({ id, side }) {
   return null;
 }
 
-export function WardrobeOverlay({ accessories, accessoryId = "none", row, sprite }) {
+// Where each slot's art attaches on the default character (viewBox 0-100).
+// A custom pet's anchors.json overrides these; the transform maps the default
+// attach point onto the estimated one and scales by the figure-height ratio.
+const DEFAULT_ATTACH = { head: { x: 50, y: 16 }, neck: { x: 50, y: 41 } };
+
+function slotTransform(slot, anchors, side) {
+  if (!anchors) return null;
+  const anchor = anchors[slot];
+  if (!anchor || typeof anchor.x !== "number" || typeof anchor.y !== "number") return null;
+  const scale = Number(anchors.scale) || 1;
+  const attach = slot === "prop" ? { x: side > 0 ? 65 : 35, y: 55 } : DEFAULT_ATTACH[slot];
+  return `translate(${anchor.x} ${anchor.y}) scale(${scale}) translate(${-attach.x} ${-attach.y})`;
+}
+
+export function WardrobeOverlay({ accessories, accessoryId = "none", row, sprite, anchors }) {
   const side = facingFor(row, sprite);
   const slots = accessories || { head: accessoryId, neck: "none", prop: "none" };
   if (!slots.head && !slots.neck && !slots.prop) return null;
+  const headTransform = slotTransform("head", anchors, side);
+  const neckTransform = slotTransform("neck", anchors, side);
+  const propTransform = slotTransform("prop", anchors, side);
   return (
     <svg className="wardrobe-overlay" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-      <HeadAccessory id={slots.head || "none"} side={side} />
-      <NeckAccessory id={slots.neck || "none"} />
-      <PropAccessory id={slots.prop || "none"} side={side} />
+      <g transform={headTransform || undefined}><HeadAccessory id={slots.head || "none"} side={side} /></g>
+      <g transform={neckTransform || undefined}><NeckAccessory id={slots.neck || "none"} /></g>
+      <g transform={propTransform || undefined}><PropAccessory id={slots.prop || "none"} side={side} /></g>
     </svg>
   );
 }

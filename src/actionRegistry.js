@@ -22,6 +22,30 @@ export const PET_ACTIONS = Object.freeze([
   { id: "hug", label: "抱抱", sprite: "./assets/actions/heart-gesture-v1.png", columns: 4, sheetRows: 2, frames: 8, loopMs: 1680, group: "互动" },
 ]);
 
+// Sprite-based actions carry hand-drawn art of the default character. On a
+// custom pet they must never load that art: every one of them maps onto a row
+// of the user's own atlas instead. Used by the pet window and the dashboard.
+export const ATLAS_ACTION_FALLBACKS = Object.freeze({
+  heart: { row: 3, frames: 4, loopMs: 880 },
+  celebrate: { row: 4, frames: 5, loopMs: 820 },
+  shy: { row: 6, frames: 6, loopMs: 1500 },
+  pet: { row: 6, frames: 6, loopMs: 1500 },
+  hug: { row: 3, frames: 4, loopMs: 880 },
+  "rps-rock": { row: 3, frames: 4, loopMs: 880 },
+  "rps-scissors": { row: 3, frames: 4, loopMs: 880 },
+  "rps-paper": { row: 3, frames: 4, loopMs: 880 },
+});
+
+// Legacy standalone sprites (sit/sleep/drag/happy/blink) map onto atlas rows
+// the same way; states missing here keep their default rendering path.
+export const ATLAS_STATE_FALLBACKS = Object.freeze({
+  sit: { row: 6, frames: 6, loopMs: 1500 },
+  sleep: { row: 6, frames: 6, loopMs: 1500 },
+  drag: { row: 0, frames: 7, loopMs: 1400 },
+  happy: { row: 3, frames: 4, loopMs: 880 },
+  blink: { row: 0, frameOffset: 0, frames: 1 },
+});
+
 export const GAZE_DIRECTIONS = Object.freeze(Array.from({ length: 16 }, (_, index) => ({
   id: index,
   label: ["正前", "右前", "右前下", "右侧前", "正右", "右侧后", "右后下", "右后", "正后", "左后", "左后下", "左侧后", "正左", "左侧前", "左前下", "左前"][index],

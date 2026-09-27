@@ -9,9 +9,20 @@
     { "name": "running", "label": "向右奔跑", "frames": 6, "row": 7, "background": "cyan", "action": "朝画面右侧奔跑的连续动作：迈步、摆臂，人物方向明确朝右" },
     { "name": "review", "label": "认真查看", "frames": 6, "row": 8, "background": "white", "action": "认真查看的连续姿势：低头端详、歪头思考、点点头" }
   ],
+  "outfits": [
+    { "outfit": "rose", "label": "樱花茶会", "description": "粉白樱花和风裙装，樱花瓣点缀，温柔茶会氛围" },
+    { "outfit": "sky", "label": "晴空散步", "description": "天蓝色轻便散步装，白云元素，清爽活泼" },
+    { "outfit": "moon", "label": "月光庆典", "description": "月光紫礼服裙，星月银饰，庆典夜氛围" },
+    { "outfit": "strawberry", "label": "草莓奶油裙", "description": "草莓红蓬蓬裙配奶油白围边，甜美点心风" },
+    { "outfit": "winter", "label": "暖冬毛绒衣", "description": "暖白蓝冬装毛绒外套围巾，冬日温暖感" },
+    { "outfit": "sailor", "label": "海风水手服", "description": "蓝白水手服配领巾，夏季海风清爽感" },
+    { "outfit": "wizard", "label": "星月魔法裙", "description": "深紫魔法师裙装配星星斗篷，神秘魔法感" },
+    { "outfit": "sunset", "label": "晚霞野餐裙", "description": "橙黄渐变晚霞色野餐裙，夕阳暖色调" }
+  ],
   "guideTips": [
     "角色图是身份基准：先只生成第 1 步的角色图，满意后再用它当参考图去生成后面的动作条带，这样每张图里都是同一个人。",
     "动作条带必须横平竖直：每个角色完整、互不重叠、大致等距排成一行，脚底在同一水平线上。",
-    "如果某个动作生成效果不好，只重新生成那一条就行，不用全部重来。"
+    "如果某个动作生成效果不好，只重新生成那一条就行，不用全部重来。",
+    "换装只改衣服：生成换装条带时，脸部发型五官要和参考图完全一致，只换衣服和配饰。"
   ]
 }

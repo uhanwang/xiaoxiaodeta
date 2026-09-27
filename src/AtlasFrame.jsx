@@ -22,6 +22,7 @@ export function AtlasFrame({
   accessoryId = "none",
   frameSequence,
   gestureChoice,
+  anchors,
 }) {
   const [frame, setFrame] = useState(0);
   useEffect(() => {
@@ -38,7 +39,7 @@ export function AtlasFrame({
     : atlasCellStyle(row, frameOffset + frame, wardrobeAtlas);
   return (
     <div className={`atlas-frame ${sprite ? "sheet-frame" : ""} ${className}`} role="img" aria-label={label} style={style}>
-      <WardrobeOverlay accessories={accessories} accessoryId={accessoryId} row={row} sprite={sprite} />
+      <WardrobeOverlay accessories={accessories} accessoryId={accessoryId} row={row} sprite={sprite} anchors={anchors} />
       {gestureChoice && <RpsGestureOverlay choice={gestureChoice} />}
     </div>
   );

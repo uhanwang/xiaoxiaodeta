@@ -453,6 +453,12 @@ export function applyProgressEvent(input, event, now = new Date()) {
     if (save.currencies.stars < item.price) return { ...result, reason: "星星不够，再玩一轮小游戏吧。" };
     save.currencies.stars -= item.price;
     save.progression.collection.push(item.id);
+  } else if (type === "grantCosmetic") {
+    // Wardrobe variants the user hand-generates for their own custom pet are
+    // theirs by right: no star price, no affection gate, no duplicate.
+    const item = COSMETIC_ITEMS.find((entry) => entry.id === event?.itemId);
+    if (!item) return { ...result, reason: "没有找到这件装扮。" };
+    if (!save.progression.collection.includes(item.id)) save.progression.collection.push(item.id);
   } else if (type === "equip") {
     const itemId = event?.itemId;
     if (itemId === "none") {

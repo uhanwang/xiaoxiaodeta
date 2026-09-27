@@ -3,6 +3,8 @@
 // provides copyable prompts); this module does the local part only:
 // per-frame cutout (u2netp ramp / cyan key) -> baseline registration ->
 // 8x11 atlas composition -> structural QA -> install. No API, no cost.
+// target: "active" installs as the pet (and saves a closet slot);
+// { outfit } stores the result as a wardrobe variant for that outfit.
 const fs = require("node:fs");
 const path = require("node:path");
 
@@ -17,6 +19,7 @@ const {
 } = require("./atlasCompose.cjs");
 const { inferMask } = require("./litePet.cjs");
 const { rgbaFromBgra } = require("./imageOps.cjs");
+const { estimateAnchors, saveActivePetToSlot, wardrobeVariantPath, writeAnchors } = require("./wardrobe.cjs");
 
 const CELL_W = 192;
 const CELL_H = 208;
@@ -50,12 +53,16 @@ function padCells(cells, target, padWith) {
   return result.slice(0, target);
 }
 
-async function assembleQPet({ strips, userDataPath, deps }) {
+async function assembleQPet({ strips, userDataPath, deps, target = "active" }) {
   const { nativeImage, ort, modelPath, onProgress } = deps;
   const specs = stripSpecs();
   const missing = specs.filter((spec) => !strips || typeof strips[spec.name] !== "string" || !strips[spec.name]);
   if (missing.length) {
     throw new Error(`还缺少动作条带：${missing.map((spec) => spec.label).join("、")}。`);
+  }
+  const outfitId = target && typeof target === "object" ? target.outfit : null;
+  if (target !== "active" && !wardrobeVariantPath(userDataPath, outfitId)) {
+    throw new Error("未知的换装主题。");
   }
   const resolved = {};
   for (const spec of specs) {
@@ -120,16 +127,33 @@ async function assembleQPet({ strips, userDataPath, deps }) {
       throw error;
     }
 
-    onProgress({ stage: "install", done: total, total, message: "安装新形象…" });
-    const { installCustomAtlas } = require("./customAssets.cjs");
-    installCustomAtlas(candidatePath, userDataPath, nativeImage);
-    const { writeActiveMode, resetLitePet } = require("./litePet.cjs");
-    resetLitePet(userDataPath);
-    writeActiveMode(userDataPath, "atlas");
-    onProgress({ stage: "done", done: total, total, message: "你的专属桌宠已就位，正在打开陪伴面板！", finished: true });
+    onProgress({ stage: "install", done: total, total, message: outfitId ? "安装这套换装…" : "安装新形象…" });
+    if (outfitId) {
+      // Wardrobe variant: store it beside the active atlas; the active look
+      // stays untouched until the outfit is equipped in the wardrobe.
+      const { label } = loadGuide().outfits.find((entry) => entry.outfit === outfitId) || { label: outfitId };
+      const variantPath = wardrobeVariantPath(userDataPath, outfitId);
+      fs.mkdirSync(path.dirname(variantPath), { recursive: true });
+      fs.copyFileSync(candidatePath, variantPath);
+      onProgress({ stage: "done", done: total, total, message: `「${label}」换装已生成，正在为桌宠穿上…`, finished: true, outfit: outfitId });
+    } else {
+      const { installCustomAtlas } = require("./customAssets.cjs");
+      installCustomAtlas(candidatePath, userDataPath, nativeImage);
+      const anchors = estimateAnchors(atlas, CELL_W * 8, CELL_H * 11);
+      if (anchors) writeAnchors(userDataPath, anchors);
+      try {
+        saveActivePetToSlot(userDataPath, {});
+      } catch {
+        // The closet is a convenience; a failed save must not fail the install.
+      }
+      const { writeActiveMode, resetLitePet } = require("./litePet.cjs");
+      resetLitePet(userDataPath);
+      writeActiveMode(userDataPath, "atlas");
+      onProgress({ stage: "done", done: total, total, message: "你的专属桌宠已就位，正在打开陪伴面板！", finished: true });
+    }
     // Success: the candidate is installed; nothing else needs to be kept.
     fs.rmSync(workDir, { recursive: true, force: true });
-    return { ok: true, candidatePath };
+    return { ok: true, candidatePath, outfit: outfitId || null };
   } catch (error) {
     if (!error.candidatePath) {
       // Keep nothing behind unless a failed candidate was preserved on purpose.

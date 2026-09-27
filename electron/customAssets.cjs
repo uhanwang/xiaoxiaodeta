@@ -2,10 +2,14 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const { liteAssetPath, liteManifestPath, readActiveMode } = require("./litePet.cjs");
+const { slotDir, wardrobeVariantPath } = require("./wardrobe.cjs");
 
 const CUSTOM_ATLAS_ROUTE = "assets/atlas/pet-actions-installed.webp";
 const CUSTOM_ATLAS_FILENAME = "pet-actions-installed.png";
 const LITE_ROUTE_PREFIX = "assets/custom/lite/";
+const CLOSET_ROUTE_PREFIX = "assets/custom/closet/";
+const WARDROBE_PREFIX = "assets/wardrobe/";
+const WARDROBE_ATLAS_RE = /^assets\/wardrobe\/([a-z][a-z0-9-]*)\/atlas\/pet-actions-installed\.webp$/;
 const EXPECTED_ATLAS_SIZE = Object.freeze({ width: 1536, height: 2288 });
 
 function customAtlasPath(userDataPath) {
@@ -40,9 +44,34 @@ function resolveClientAsset(relativePath, clientRoot, userDataPath) {
     const litePath = liteAssetPath(userDataPath, normalizedPath.slice(LITE_ROUTE_PREFIX.length));
     if (litePath) return litePath;
   }
+  if (normalizedPath.startsWith(CLOSET_ROUTE_PREFIX)) {
+    const slotId = normalizedPath.slice(CLOSET_ROUTE_PREFIX.length).replace(/\.png$/, "");
+    const slot = slotDir(userDataPath, slotId);
+    const thumbnail = slot ? path.join(slot, "atlas.png") : null;
+    if (thumbnail && fs.existsSync(thumbnail)) return thumbnail;
+    return null;
+  }
   if (normalizedPath === CUSTOM_ATLAS_ROUTE) {
     const overridePath = customAtlasPath(userDataPath);
     if (fs.existsSync(overridePath)) return overridePath;
+  }
+  if (normalizedPath.startsWith(WARDROBE_PREFIX)) {
+    // In custom-atlas mode the wardrobe is served from user-generated files:
+    // a generated variant wins, a missing one falls back to the user's own
+    // base atlas, and the bundled default character is never reachable.
+    if (resolveAppearanceMode(userDataPath) === "atlas") {
+      const atlasMatch = normalizedPath.match(WARDROBE_ATLAS_RE);
+      if (atlasMatch) {
+        const variant = wardrobeVariantPath(userDataPath, atlasMatch[1]);
+        if (variant && fs.existsSync(variant)) return variant;
+        const base = customAtlasPath(userDataPath);
+        return fs.existsSync(base) ? base : null;
+      }
+      // Per-sprite wardrobe art was hand-tuned for the default character;
+      // it would flash the wrong persona on a custom one.
+      return null;
+    }
+    return bundledPath;
   }
   return bundledPath;
 }

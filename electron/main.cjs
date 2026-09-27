@@ -13,6 +13,18 @@ const { atlasFeedback } = require("./atlas-feedback.cjs");
 const { installLitePet, readLiteManifest, resetLitePet, writeActiveMode } = require("./litePet.cjs");
 const { assembleQPet } = require("./qpet.cjs");
 const { isPetHitTarget } = require("./pet-hit-area.cjs");
+const { rgbaFromBgra } = require("./imageOps.cjs");
+const {
+  deleteSlot,
+  estimateAnchors,
+  listSlots,
+  listWardrobeVariants,
+  readAnchors,
+  saveActivePetToSlot,
+  switchToSlot,
+  WARDROBE_OUTFITS,
+  writeAnchors,
+} = require("./wardrobe.cjs");
 
 const isDev = process.argv.includes("--dev");
 const shouldCapture = process.argv.includes("--capture");
@@ -809,11 +821,12 @@ function createWindow() {
   }
 }
 
-function createAppUrl(windowType, tab = "home") {
+function createAppUrl(windowType, tab = "home", outfit = null) {
   const base = isDev ? "http://127.0.0.1:4173/" : "pet://app/index.html";
   if (!windowType || windowType === "pet") return shouldCapture ? `${base}?capture=1` : base;
   const query = new URLSearchParams({ window: windowType });
   if (windowType === "dashboard" && tab !== "home") query.set("tab", tab);
+  if (windowType === "onboarding" && outfit) query.set("outfit", String(outfit));
   return `${base}?${query}`;
 }
 
@@ -866,8 +879,12 @@ function ensureDashboard() {
   createdDashboard.loadURL(createAppUrl("dashboard", "home")).catch((error) => writeLog(`dashboard load rejected ${error.stack || error.message}`));
 }
 
-function createOnboardingWindow() {
+function createOnboardingWindow(outfit = null) {
   if (onboardingWindow && !onboardingWindow.isDestroyed()) {
+    // Re-entering with an outfit target restarts the wizard in outfit mode.
+    if (outfit) {
+      onboardingWindow.loadURL(createAppUrl("onboarding", "home", outfit)).catch((error) => writeLog(`onboarding reload rejected ${error.message}`));
+    }
     onboardingWindow.show();
     onboardingWindow.focus();
     return;
@@ -902,7 +919,7 @@ function createOnboardingWindow() {
     if (mainWindow && !mainWindow.isDestroyed()) mainWindow.showInactive();
     if (!shouldCapture) setTimeout(() => { if (!quitting) openDashboard("home"); }, 250);
   });
-  onboardingWindow.loadURL(createAppUrl("onboarding")).catch((error) => writeLog(`onboarding load rejected ${error.message}`));
+  onboardingWindow.loadURL(createAppUrl("onboarding", "home", outfit)).catch((error) => writeLog(`onboarding load rejected ${error.message}`));
 }
 
 function markOnboarded() {
@@ -1085,13 +1102,74 @@ ipcMain.handle("pet:install-custom-atlas", (_event, payload) => {
   return installAtlasFromPath(sourcePath);
 });
 ipcMain.handle("pet:reset-custom-atlas", () => resetAtlasToDefault());
+// Older installs have no anchors.json yet; derive it once from the installed
+// atlas so accessory overlays land correctly without reinstalling.
+function ensureAtlasAnchors(userDataPath) {
+  if (readAnchors(userDataPath)) return;
+  try {
+    const { customAtlasPath } = require("./customAssets.cjs");
+    const image = nativeImage.createFromPath(customAtlasPath(userDataPath));
+    if (image.isEmpty()) return;
+    const { width, height } = image.getSize();
+    const anchors = estimateAnchors(rgbaFromBgra(image.toBitmap(), width, height), width, height);
+    if (anchors) writeAnchors(userDataPath, anchors);
+  } catch (error) {
+    writeLog(`anchor estimation failed: ${error.message}`);
+  }
+}
+
 ipcMain.handle("pet:custom-atlas-status", () => {
-  const mode = resolveAppearanceMode(app.getPath("userData"));
+  const userDataPath = app.getPath("userData");
+  const mode = resolveAppearanceMode(userDataPath);
+  if (mode === "atlas") ensureAtlasAnchors(userDataPath);
   return {
     custom: mode !== "default",
     mode,
-    manifest: mode === "lite" ? readLiteManifest(app.getPath("userData")) : null,
+    manifest: mode === "lite" ? readLiteManifest(userDataPath) : null,
+    anchors: mode === "atlas" ? readAnchors(userDataPath) : null,
+    outfitVariants: mode === "atlas" ? [...listWardrobeVariants(userDataPath)] : [],
   };
+});
+
+ipcMain.handle("pet:closet-list", () => {
+  const userDataPath = app.getPath("userData");
+  return {
+    slots: listSlots(userDataPath),
+    mode: resolveAppearanceMode(userDataPath),
+    outfitVariants: [...listWardrobeVariants(userDataPath)],
+  };
+});
+
+ipcMain.handle("pet:closet-save", (_event, payload) => {
+  try {
+    const slot = saveActivePetToSlot(app.getPath("userData"), { name: payload?.name });
+    return { ok: true, slot, message: "当前形象已存入形象柜。" };
+  } catch (error) {
+    return { ok: false, error: error.message };
+  }
+});
+
+ipcMain.handle("pet:closet-switch", (_event, slotId) => {
+  const userDataPath = app.getPath("userData");
+  try {
+    switchToSlot(userDataPath, slotId);
+    resetLitePet(userDataPath);
+    writeActiveMode(userDataPath, "atlas");
+    reloadPetWindows();
+    return { ok: true, message: "已经换上这个形象啦。" };
+  } catch (error) {
+    writeLog(`closet switch failed: ${error.message}`);
+    return { ok: false, error: error.message };
+  }
+});
+
+ipcMain.handle("pet:closet-delete", (_event, slotId) => {
+  try {
+    deleteSlot(app.getPath("userData"), slotId);
+    return { ok: true, message: "形象槽位已删除。" };
+  } catch (error) {
+    return { ok: false, error: error.message };
+  }
 });
 ipcMain.handle("pet:install-lite-pet", async (_event, payload) => {
   const entries = Array.isArray(payload?.photos) ? payload.photos : null;
@@ -1143,15 +1221,27 @@ ipcMain.handle("pet:complete-onboarding", (_event, payload) => {
   return { ok: true };
 });
 ipcMain.on("pet:open-onboarding", () => createOnboardingWindow());
+ipcMain.on("pet:open-onboarding", (_event, outfitId) => {
+  const outfit = WARDROBE_OUTFITS.includes(outfitId) ? outfitId : null;
+  createOnboardingWindow(outfit);
+});
 ipcMain.handle("pet:qpet-assemble", async (_event, payload) => {
   const strips = payload?.strips;
   if (!strips || typeof strips !== "object") {
     return { ok: false, error: "请先按引导上传全部动作条带图片。" };
   }
+  const requested = payload?.target;
+  const target = requested == null || requested === "active"
+    ? "active"
+    : (requested && typeof requested === "object" && WARDROBE_OUTFITS.includes(requested.outfit) ? { outfit: requested.outfit } : null);
+  if (!target) {
+    return { ok: false, error: "未知的换装主题，请回到衣橱重新进入。" };
+  }
   if (qpetJobActive) return { ok: false, error: "已有一个生成任务在进行中，请等它结束。" };
   qpetJobActive = true;
   assembleQPet({
     strips,
+    target,
     userDataPath: app.getPath("userData"),
     deps: {
       nativeImage,
@@ -1160,9 +1250,35 @@ ipcMain.handle("pet:qpet-assemble", async (_event, payload) => {
       onProgress: broadcastQPetProgress,
     },
   })
-    .then(() => {
+    .then(async (result) => {
+      if (target !== "active") {
+        // The user just made this outfit variant for their own pet: grant it
+        // for free and put it on immediately.
+        try {
+          const itemId = `outfit-${target.outfit}`;
+          const { applyProgressEvent, migrateSave } = await getProgressionModule();
+          const current = await loadNormalizedProgressSave() || migrateSave(null, null, new Date());
+          const grant = applyProgressEvent(current, { type: "grantCosmetic", itemId }, new Date());
+          const equip = applyProgressEvent(grant.save, { type: "equip", itemId }, new Date());
+          if (equip.applied) {
+            writeProgressSave(equip.save);
+            broadcastProgressSave(equip.save);
+          } else if (grant.applied) {
+            writeProgressSave(grant.save);
+            broadcastProgressSave(grant.save);
+          }
+        } catch (error) {
+          writeLog(`outfit grant failed: ${error.message}`);
+        }
+      }
+      // Close the wizard first; its closed handler schedules a "home" landing
+      // 250ms later, so the real landing is applied after that to win.
       if (onboardingWindow && !onboardingWindow.isDestroyed()) onboardingWindow.close();
-      openDashboard("home");
+      const landingTab = target !== "active" ? "collection" : "home";
+      setTimeout(() => {
+        openDashboard(landingTab);
+        reloadPetWindows();
+      }, 350);
     })
     .catch((error) => {
       writeLog(`qpet assembly failed: ${error.message}`);

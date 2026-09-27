@@ -14,3 +14,12 @@ export function stripPromptText(spec) {
     : "纯白均匀背景";
   return `基于参考图中同一个 Q 版桌宠角色，重新绘制同一角色的「${spec.label}」动作精灵表。横向 ${spec.frames} 个完整不重叠的同一角色，角色大小和脚底基线完全一致，动作连续自然：${spec.action}。${background}，无阴影、无文字、无编号、无道具、无额外人物，适合逐格切分。`;
 }
+
+// Wardrobe mode: same strip spec, but the outfit replaces the character's
+// clothes while face/hair stay identical to the reference image.
+export function outfitStripPromptText(spec, outfit) {
+  const background = spec.background === "cyan"
+    ? "纯青色（#00FFFF）均匀背景"
+    : "纯白均匀背景";
+  return `基于参考图中同一个 Q 版桌宠角色，重新绘制同一角色穿着「${outfit.label}」服装的「${spec.label}」动作精灵表。这套服装的风格：${outfit.description}。脸部、发型、五官必须与参考图完全一致，只更换服装与服装配套的配饰，不要改变角色的体型、比例和气质。横向 ${spec.frames} 个完整不重叠的同一角色，角色大小和脚底基线完全一致，动作连续自然：${spec.action}。${background}，无阴影、无文字、无编号、除服装配套配饰外无其他道具、无额外人物，适合逐格切分。`;
+}

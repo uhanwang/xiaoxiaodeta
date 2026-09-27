@@ -1336,6 +1336,27 @@ button {
 .lite-install-cta:hover:not(:disabled) { background: #a75d6b; }
 .lite-install-cta:disabled { opacity: 0.45; cursor: default; }
 .wardrobe-lite-note { margin: 0 0 12px; padding: 11px 13px; border: 1px solid #f0e4e5; border-radius: 11px; background: #fff8f8; color: #9b7a82; font-size: 11px; line-height: 1.6; }
+.wardrobe-card.pending button { background: #fff0e3; color: #a2642c; border-color: #ecd2b4; }
+.wardrobe-card.pending button:hover { background: #fbe4cd; }
+
+/* --- pet closet (multi-pet slots) --- */
+.closet-block { margin-top: 14px; padding: 13px; border: 1px solid #f0e4e5; border-radius: 12px; background: #fffdfd; }
+.closet-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.closet-head strong { display: block; color: #5b484d; font-size: 12px; margin-bottom: 3px; }
+.closet-head small { color: #a89297; font-size: 10px; line-height: 1.5; }
+.closet-head button { border: 0; border-radius: 8px; padding: 7px 12px; background: #b86b79; color: #fff; font-size: 11px; cursor: pointer; white-space: nowrap; }
+.closet-head button:hover:not(:disabled) { background: #a75d6b; }
+.closet-head button:disabled { opacity: 0.45; cursor: default; }
+.closet-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 9px; }
+.closet-slot { display: grid; justify-items: center; gap: 6px; padding: 9px 8px; border: 1px solid #f0e4e5; border-radius: 11px; background: #fffafa; }
+.closet-thumb { width: 64px; height: 70px; border-radius: 9px; background-color: #fdf5f6; background-size: 800% 1100%; background-position: 0% 0%; background-repeat: no-repeat; image-rendering: auto; }
+.closet-copy strong { color: #6d585d; font-size: 10px; text-align: center; line-height: 1.4; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.closet-actions { display: flex; gap: 5px; }
+.closet-actions button { border: 1px solid #ebdddf; border-radius: 7px; padding: 4px 9px; background: #fff; color: #7d686d; font-size: 10px; cursor: pointer; }
+.closet-actions button:hover:not(:disabled) { background: #f9edef; }
+.closet-actions .closet-delete { color: #b06767; }
+.closet-actions button:disabled { opacity: 0.45; cursor: default; }
+.closet-empty { margin: 0; color: #a89297; font-size: 10px; line-height: 1.6; }
 
 /* --- AI Q-version generation block --- */
 .qpet-block { margin-top: 14px; padding: 13px; border: 1px solid #f0e4e5; border-radius: 12px; background: #fffdfd; }

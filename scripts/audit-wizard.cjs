@@ -107,7 +107,7 @@ async function main() {
       return evalJs(cdp, `(() => {
         const step = document.querySelector(".onb-stepper li.current")?.textContent?.trim();
         const buttons = Array.from(document.querySelectorAll(".onb-primary")).map((button) => ({ text: button.textContent, disabled: button.disabled }));
-        const assemble = buttons.find((button) => button.text.includes("一键生成"));
+        const assemble = buttons.find((button) => button.text.includes("一键生成") || button.text.includes("上传完"));
         return { step, buttons, disabled: assemble ? assemble.disabled : null, label: assemble ? assemble.text : null };
       })()`);
     },

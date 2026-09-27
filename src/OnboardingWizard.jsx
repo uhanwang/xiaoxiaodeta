@@ -1,7 +1,5 @@
 import { useEffect, useState } from "react";
-import { GUIDE, identityPrompt, stripPromptText } from "./qpetGuide.js";
-
-const STEPS = ["欢迎", "生成角色图", "生成动作条带", "上传并生成", "完成"];
+import { GUIDE, identityPrompt, outfitStripPromptText, stripPromptText } from "./qpetGuide.js";
 
 function PromptBox({ title, text }) {
   const [copied, setCopied] = useState(false);
@@ -26,12 +24,24 @@ function PromptBox({ title, text }) {
 }
 
 export function OnboardingWizard() {
+  // Outfit mode (?outfit=<id>) is entered from a wardrobe card on a custom
+  // pet: it generates one clothing variant instead of a whole new character,
+  // so the identity layer is skipped entirely.
+  const outfitId = new URLSearchParams(window.location.search).get("outfit");
+  const outfit = GUIDE.outfits?.find((entry) => entry.outfit === outfitId) || null;
+  const steps = outfit
+    ? ["欢迎", "生成动作条带", "上传并生成", "完成"]
+    : ["欢迎", "生成角色图", "生成动作条带", "上传并生成", "完成"];
+  const promptsStep = outfit ? 1 : 2;
+  const uploadStep = outfit ? 2 : 3;
+  const doneStep = outfit ? 3 : 4;
+
   const [step, setStep] = useState(0);
   const [strips, setStrips] = useState({});
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => { document.title = "小小的她 · 专属形象向导"; }, []);
+  useEffect(() => { document.title = outfit ? `小小的她 · ${outfit.label}换装向导` : "小小的她 · 专属形象向导"; }, [outfit]);
 
   useEffect(() => window.pet?.onQPetProgress?.((progress) => {
     if (progress?.message) setMessage(progress.message);
@@ -39,9 +49,9 @@ export function OnboardingWizard() {
       setBusy(false);
       if (progress.error) return;
       window.pet?.completeOnboarding?.({ close: true });
-      setStep(4);
+      setStep(doneStep);
     }
-  }), []);
+  }), [doneStep]);
 
   const copyText = async (text, label) => {
     try {
@@ -83,10 +93,12 @@ export function OnboardingWizard() {
   const startAssembly = async () => {
     if (!allReady || busy) return;
     setBusy(true);
-    setMessage("正在本地拼装你的专属桌宠…全程免费，约十几秒到一分钟。");
+    setMessage(outfit
+      ? `正在本地拼装「${outfit.label}」换装…全程免费，约十几秒到一分钟。`
+      : "正在本地拼装你的专属桌宠…全程免费，约十几秒到一分钟。");
     const payload = {};
     for (const spec of GUIDE.strips) payload[spec.name] = strips[spec.name].sourcePath;
-    const result = await window.pet?.qpetAssemble?.(payload);
+    const result = await window.pet?.qpetAssemble?.(payload, outfit ? { outfit: outfit.outfit } : undefined);
     if (!result?.ok) {
       setBusy(false);
       setMessage(result?.error || "生成任务没能启动。");
@@ -104,13 +116,13 @@ export function OnboardingWizard() {
       <header className="onb-head">
         <img src="./assets/brand/mascot-icon.png" alt="" />
         <div>
-          <strong>小小的她 · 专属形象向导</strong>
-          <small>全程免费 · 用哪个生图工具由你决定 · 拼装在本机完成，照片不会上传给项目方</small>
+          <strong>{outfit ? `小小的她 · ${outfit.label}换装` : "小小的她 · 专属形象向导"}</strong>
+          <small>全程免费 · 用哪个生图工具由你决定 · 拼装在本机完成，图片不会上传给项目方</small>
         </div>
       </header>
 
       <ol className="onb-stepper">
-        {STEPS.map((label, index) => (
+        {steps.map((label, index) => (
           <li key={label} className={index === step ? "current" : index < step ? "done" : ""}>
             <i>{index < step ? "✓" : index + 1}</i>{label}
           </li>
@@ -118,7 +130,21 @@ export function OnboardingWizard() {
       </ol>
 
       <section className="onb-body">
-        {step === 0 && (
+        {step === 0 && (outfit ? (
+          <div className="onb-step">
+            <h1>给 {outfit.label} 生成专属换装。</h1>
+            <p className="onb-lead">这套服装的风格：{outfit.description}。用你的 AI 生图工具，以当前桌宠形象为参考图，生成 7 张穿着这套衣服的动作条带——脸部、发型保持完全一致，只换衣服。上传后本机自动拼装，并直接给桌宠穿上。</p>
+            <ul className="onb-facts">
+              <li>换装只改衣服：不改变角色的脸、发型和体型</li>
+              <li>约 10 分钟：7 张动作条带，哪张不满意单独重做</li>
+              <li>生成后这套服装会自动解锁并穿上，不用花星星</li>
+            </ul>
+            <div className="onb-actions">
+              <button type="button" className="onb-primary" onClick={() => setStep(1)}>开始生成</button>
+              <button type="button" className="onb-ghost" onClick={skip}>先不换了</button>
+            </div>
+          </div>
+        ) : (
           <div className="onb-step">
             <h1>把这只桌宠，变成你自己的。</h1>
             <p className="onb-lead">跟着向导走三步：用你喜欢的 AI 生图工具生成专属的 Q 版角色和动作，回到这里上传，剩下的抠图、拼装、安装全部自动完成。生成后，桌宠的一举一动都来自你自己的图片。</p>
@@ -132,9 +158,9 @@ export function OnboardingWizard() {
               <button type="button" className="onb-ghost" onClick={skip}>跳过，先用默认形象</button>
             </div>
           </div>
-        )}
+        ))}
 
-        {step === 1 && (
+        {!outfit && step === 1 && (
           <div className="onb-step">
             <h2>第 1 层 · 生成 Q 版角色图</h2>
             <ol className="onb-howto">
@@ -150,27 +176,42 @@ export function OnboardingWizard() {
           </div>
         )}
 
-        {step === 2 && (
+        {step === promptsStep && (
           <div className="onb-step">
-            <h2>第 2 层 · 生成 7 张动作条带</h2>
+            <h2>{outfit ? `生成「${outfit.label}」的 7 张动作条带` : "第 2 层 · 生成 7 张动作条带"}</h2>
             <ol className="onb-howto">
-              <li>还是在这个生图工具里，把<b>刚才的 Q 版角色图</b>作为参考图上传。</li>
-              <li>逐条复制下面的动作提示词发送，每次得到一张横向动作条带图，共 7 张。</li>
+              {outfit ? (
+                <>
+                  <li>在这个生图工具里，把<b>当前桌宠形象</b>（任意一张动作图或之前的角色图）作为参考图上传。</li>
+                  <li>逐条复制下面的换装提示词发送，每次得到一张横向动作条带图，共 7 张。</li>
+                </>
+              ) : (
+                <>
+                  <li>还是在这个生图工具里，把<b>刚才的 Q 版角色图</b>作为参考图上传。</li>
+                  <li>逐条复制下面的动作提示词发送，每次得到一张横向动作条带图，共 7 张。</li>
+                </>
+              )}
               <li>每张条带里应是{GUIDE.strips.map((spec) => `${spec.label} ${spec.frames} 格`).join("、")}；哪张不满意单独重做即可。</li>
             </ol>
             <div className="guide-strip-prompts">
-              {GUIDE.strips.map((spec) => <PromptBox key={spec.name} title={`${spec.label}（横条 ${spec.frames} 格）`} text={stripPromptText(spec)} />)}
+              {GUIDE.strips.map((spec) => (
+                <PromptBox
+                  key={spec.name}
+                  title={`${spec.label}（横条 ${spec.frames} 格）`}
+                  text={outfit ? outfitStripPromptText(spec, outfit) : stripPromptText(spec)}
+                />
+              ))}
             </div>
             <div className="onb-actions">
-              <button type="button" className="onb-ghost" onClick={() => setStep(1)}>上一步</button>
-              <button type="button" className="onb-primary" onClick={() => setStep(3)}>我已生成动作条带，下一步</button>
+              <button type="button" className="onb-ghost" onClick={() => setStep(promptsStep - 1)}>上一步</button>
+              <button type="button" className="onb-primary" onClick={() => setStep(uploadStep)}>我已生成动作条带，下一步</button>
             </div>
           </div>
         )}
 
-        {step === 3 && (
+        {step === uploadStep && (
           <div className="onb-step">
-            <h2>第 3 层 · 上传条带，一键生成</h2>
+            <h2>{outfit ? `上传「${outfit.label}」条带，一键生成` : "第 3 层 · 上传条带，一键生成"}</h2>
             <p className="onb-lead">把 7 张动作条带图上传到下面。抠图、按脚底基线对齐、拼装成完整动作图集、质量校验、安装——全部在本机自动完成。</p>
             <div className="guide-upload-list">
               {GUIDE.strips.map((spec) => (
@@ -189,28 +230,39 @@ export function OnboardingWizard() {
             </div>
             {message && <p className="interaction-feedback" role="status">{message}</p>}
             <div className="onb-actions">
-              <button type="button" className="onb-ghost" onClick={() => setStep(2)}>上一步</button>
-              <button type="button" className="onb-primary" disabled={busy || !allReady} onClick={startAssembly}>{busy ? "拼装中…" : allReady ? "一键生成我的桌宠" : "上传完 7 张后可用"}</button>
+              <button type="button" className="onb-ghost" onClick={() => setStep(uploadStep - 1)}>上一步</button>
+              <button type="button" className="onb-primary" disabled={busy || !allReady} onClick={startAssembly}>{busy ? "拼装中…" : allReady ? (outfit ? "一键生成这套换装" : "一键生成我的桌宠") : "上传完 7 张后可用"}</button>
             </div>
           </div>
         )}
 
-        {step === 4 && (
+        {step === doneStep && (
           <div className="onb-step onb-done">
-            <h1>完成！桌宠已经是你自己的了。</h1>
-            <p className="onb-lead">陪伴面板正在打开。桌宠的一举一动——待机、奔跑、挥手、失落——现在都来自你生成的图片。</p>
+            <h1>{outfit ? "完成！这套换装已经给桌宠穿上啦。" : "完成！桌宠已经是你自己的了。"}</h1>
+            <p className="onb-lead">{outfit
+              ? `桌宠现在穿着「${outfit.label}」。衣橱里可以随时换回原来的样子，也可以继续生成其他服装。`
+              : "陪伴面板正在打开。桌宠的一举一动——待机、奔跑、挥手、失落——现在都来自你生成的图片。"}</p>
             <ul className="onb-facts">
-              <li>想微调？哪张条带不满意，重做后在向导第 3 层重新上传生成即可</li>
-              <li>想还原默认形象：陪伴面板 →「徽章装扮」→「我的形象」→ 恢复默认</li>
+              {outfit ? (
+                <>
+                  <li>想微调？哪张条带不满意，重做后在向导里重新上传生成即可</li>
+                  <li>换回原来的样子：陪伴面板 →「徽章装扮」→ 衣橱 → 日常白裙</li>
+                </>
+              ) : (
+                <>
+                  <li>想微调？哪张条带不满意，重做后在向导第 3 层重新上传生成即可</li>
+                  <li>想还原默认形象：陪伴面板 →「徽章装扮」→「我的形象」→ 恢复默认</li>
+                </>
+              )}
             </ul>
             <div className="onb-actions">
-              <button type="button" className="onb-primary" onClick={() => { window.pet?.openDashboard?.("home"); window.pet?.completeOnboarding?.({ close: true }); }}>打开陪伴面板</button>
+              <button type="button" className="onb-primary" onClick={() => { window.pet?.openDashboard?.(outfit ? "collection" : "home"); window.pet?.completeOnboarding?.({ close: true }); }}>打开陪伴面板</button>
             </div>
           </div>
         )}
       </section>
 
-      {message && step !== 3 && <p className="onb-status" role="status">{message}</p>}
+      {message && step !== uploadStep && <p className="onb-status" role="status">{message}</p>}
       <footer className="onb-foot">
         <small>提示词模板来自本项目默认角色的真实制作工艺；你的照片与生成图片只保存在这台电脑上。</small>
       </footer>

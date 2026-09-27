@@ -34,9 +34,13 @@ contextBridge.exposeInMainWorld("pet", {
   installLitePet: (photos) => ipcRenderer.invoke("pet:install-lite-pet", { photos }),
   resetCustomAtlas: () => ipcRenderer.invoke("pet:reset-custom-atlas"),
   customAtlasStatus: () => ipcRenderer.invoke("pet:custom-atlas-status"),
-  qpetAssemble: (strips) => ipcRenderer.invoke("pet:qpet-assemble", { strips }),
+  closetList: () => ipcRenderer.invoke("pet:closet-list"),
+  closetSave: (name) => ipcRenderer.invoke("pet:closet-save", { name }),
+  closetSwitch: (slotId) => ipcRenderer.invoke("pet:closet-switch", slotId),
+  closetDelete: (slotId) => ipcRenderer.invoke("pet:closet-delete", slotId),
+  qpetAssemble: (strips, target) => ipcRenderer.invoke("pet:qpet-assemble", { strips, target: target || "active" }),
   completeOnboarding: (payload) => ipcRenderer.invoke("pet:complete-onboarding", payload),
-  openOnboarding: () => ipcRenderer.send("pet:open-onboarding"),
+  openOnboarding: (outfit) => ipcRenderer.send("pet:open-onboarding", outfit),
   onQPetProgress: (callback) => {
     if (typeof callback !== "function") return () => {};
     const listener = (_event, progress) => callback(progress);
