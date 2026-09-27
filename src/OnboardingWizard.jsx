@@ -38,9 +38,8 @@ export function OnboardingWizard() {
     if (progress?.finished) {
       setBusy(false);
       if (progress.error) return;
-      window.pet?.completeOnboarding?.();
+      window.pet?.completeOnboarding?.({ close: true });
       setStep(4);
-      window.setTimeout(() => window.pet?.openDashboard?.("home"), 900);
     }
   }), []);
 
@@ -95,8 +94,9 @@ export function OnboardingWizard() {
   };
 
   const skip = () => {
-    window.pet?.completeOnboarding?.();
-    window.close();
+    // Main process closes the wizard and lands the user on the pet + panel;
+    // the renderer never closes windows itself.
+    window.pet?.completeOnboarding?.({ close: true });
   };
 
   return (
@@ -204,7 +204,7 @@ export function OnboardingWizard() {
               <li>想还原默认形象：陪伴面板 →「徽章装扮」→「我的形象」→ 恢复默认</li>
             </ul>
             <div className="onb-actions">
-              <button type="button" className="onb-primary" onClick={() => { window.pet?.openDashboard?.("home"); window.close(); }}>打开陪伴面板</button>
+              <button type="button" className="onb-primary" onClick={() => { window.pet?.openDashboard?.("home"); window.pet?.completeOnboarding?.({ close: true }); }}>打开陪伴面板</button>
             </div>
           </div>
         )}

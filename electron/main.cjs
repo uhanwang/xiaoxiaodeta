@@ -872,6 +872,7 @@ function createOnboardingWindow() {
     onboardingWindow.focus();
     return;
   }
+  writeLog("onboarding window creating");
   onboardingWindow = new BrowserWindow({
     width: 960,
     height: 720,
@@ -889,13 +890,17 @@ function createOnboardingWindow() {
     },
   });
   onboardingWindow.once("ready-to-show", () => {
+    writeLog("onboarding ready-to-show");
     if (onboardingWindow && !onboardingWindow.isDestroyed()) onboardingWindow.show();
   });
   onboardingWindow.on("closed", () => {
-    // Closing the wizard counts as "seen it"; it can always be reopened from
-    // the dashboard or the tray.
+    // Closing the wizard (skip, finish, or the X button) always lands the
+    // user somewhere visible: the pet on screen plus the companion panel.
     markOnboarded();
     onboardingWindow = null;
+    writeLog("onboarding window closed");
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.showInactive();
+    if (!shouldCapture) setTimeout(() => { if (!quitting) openDashboard("home"); }, 250);
   });
   onboardingWindow.loadURL(createAppUrl("onboarding")).catch((error) => writeLog(`onboarding load rejected ${error.message}`));
 }
@@ -1130,8 +1135,11 @@ function broadcastQPetProgress(progress) {
   }
 }
 
-ipcMain.handle("pet:complete-onboarding", () => {
+ipcMain.handle("pet:complete-onboarding", (_event, payload) => {
   markOnboarded();
+  if (payload?.close && onboardingWindow && !onboardingWindow.isDestroyed()) {
+    onboardingWindow.close();
+  }
   return { ok: true };
 });
 ipcMain.on("pet:open-onboarding", () => createOnboardingWindow());

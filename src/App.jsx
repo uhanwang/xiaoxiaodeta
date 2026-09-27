@@ -396,6 +396,16 @@ export function App() {
     "rps-paper": { row: 3, frames: 4, loopMs: 880 },
   };
   const gestureFallback = isCustomAtlas && activeAtlasAction.sprite ? gestureFallbacks[activeAtlasAction.id] : null;
+  // In custom-atlas mode the bundled legacy sprites (sit/sleep/drag/happy) would
+  // flash the default character, so every state maps onto the user's own atlas.
+  const stateFallbacks = {
+    sit: { row: 6, frames: 6, loopMs: 1500 },
+    sleep: { row: 6, frames: 6, loopMs: 1500 },
+    drag: { row: 0, frames: 7, loopMs: 1400 },
+    happy: { row: 3, frames: 4, loopMs: 880 },
+    blink: { row: 0, frameOffset: 0, frames: 1 },
+  };
+  const stateFallback = isCustomAtlas ? stateFallbacks[state] : null;
 
   return (
     <main className="pet-window" onPointerDown={() => { if (menuOpen) setMenuOpen(false); }}>
@@ -423,6 +433,8 @@ export function App() {
         <AtlasFrame row={gestureFallback.row} frames={gestureFallback.frames} loopMs={gestureFallback.loopMs} className={`pet-atlas-sprite action-${actionEffect}`} label={activeAtlasAction.label} outfit={renderOutfit} accessories={renderAccessories} />
       ) : state === "atlas-action" ? (
         <AtlasFrame row={activeAtlasAction.row} sprite={activeAtlasAction.sprite} columns={activeAtlasAction.columns} sheetRows={activeAtlasAction.sheetRows} frames={activeAtlasAction.frames} frameSequence={activeAtlasAction.frameSequence} gestureChoice={activeAtlasAction.gestureChoice} loopMs={activeAtlasAction.loopMs} className={`pet-atlas-sprite ${activeAtlasAction.sprite ? "sheet-action" : ""} action-${actionEffect}`} label={activeAtlasAction.label} outfit={renderOutfit} accessories={renderAccessories} />
+        ) : stateFallback ? (
+          <AtlasFrame row={stateFallback.row} frameOffset={stateFallback.frameOffset} frames={stateFallback.frames} loopMs={stateFallback.loopMs} className="pet-atlas-sprite" label={`桌宠${state === "sleep" ? "睡觉" : state === "sit" ? "坐下" : "回应"}`} outfit={renderOutfit} accessories={renderAccessories} />
         ) : state === "idle" ? (
           <AtlasFrame row={gaze.row} frameOffset={gaze.column} frames={1} className="pet-atlas-sprite" label={`桌宠看向${gaze.label}`} outfit={renderOutfit} accessories={renderAccessories} />
         ) : (
