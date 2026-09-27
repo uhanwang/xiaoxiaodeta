@@ -11,7 +11,7 @@
     "build:desktop": "npm run build:portable",
     "build:portable": "npm run build && electron-builder --win dir && pwsh -File scripts/build-portable-launcher.ps1 -PackageDirectory artifacts/desktop-1.5.0/win-unpacked && pwsh -File scripts/package-portable.ps1 -PackageDirectory artifacts/desktop-1.5.0/win-unpacked",
     "capture:desktop": "concurrently -k --success first \"vite --host 127.0.0.1 --port 4173 --strictPort\" \"wait-on http://127.0.0.1:4173 && electron electron/main.cjs --dev --capture\"",
-    "test": "node --test tests/pet-machine.test.mjs tests/progression.test.mjs tests/chat-replies.test.mjs tests/action-registry.test.mjs tests/memory-game.test.mjs tests/drag-coalescer.test.mjs tests/drag-session.test.mjs tests/rps-game.test.mjs tests/star-catch.test.mjs tests/pet-hit-area.test.cjs tests/custom-assets.test.mjs tests/custom-atlas-feedback.test.mjs tests/image-ops.test.mjs tests/lite-pet.test.mjs tests/lite-mode.test.mjs",
+    "test": "node --test tests/pet-machine.test.mjs tests/progression.test.mjs tests/chat-replies.test.mjs tests/action-registry.test.mjs tests/memory-game.test.mjs tests/drag-coalescer.test.mjs tests/drag-session.test.mjs tests/rps-game.test.mjs tests/star-catch.test.mjs tests/pet-hit-area.test.cjs tests/custom-assets.test.mjs tests/custom-atlas-feedback.test.mjs tests/image-ops.test.mjs tests/lite-pet.test.mjs tests/lite-mode.test.mjs tests/atlas-compose.test.mjs",
     "test:atlas": "node scripts/test-atlas.cjs",
     "test:wardrobe": "node scripts/wardrobe-assets.mjs test",
     "assets:wardrobe": "node scripts/wardrobe-assets.mjs build",

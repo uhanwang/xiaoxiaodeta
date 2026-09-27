@@ -11,6 +11,7 @@ const {
 } = require("./customAssets.cjs");
 const { atlasFeedback } = require("./atlas-feedback.cjs");
 const { installLitePet, readLiteManifest, resetLitePet, writeActiveMode } = require("./litePet.cjs");
+const { generateQPet, loadSettings, saveSettings } = require("./qpet.cjs");
 const { isPetHitTarget } = require("./pet-hit-area.cjs");
 
 const isDev = process.argv.includes("--dev");
@@ -1075,6 +1076,54 @@ function liteFeedback(error) {
   }
   return raw;
 }
+
+let qpetJobActive = false;
+
+function broadcastQPetProgress(progress) {
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (!window.isDestroyed()) window.webContents.send("pet:qpet-progress", progress);
+  }
+}
+
+ipcMain.handle("pet:qpet-settings", () => {
+  const settings = loadSettings(app.getPath("userData"));
+  return {
+    baseUrl: settings.baseUrl,
+    model: settings.model,
+    size: settings.size,
+    quality: settings.quality,
+    hasKey: Boolean(settings.apiKey),
+  };
+});
+ipcMain.handle("pet:qpet-save-settings", (_event, patch) => {
+  const merged = saveSettings(app.getPath("userData"), patch && typeof patch === "object" ? patch : {});
+  return { ok: true, hasKey: Boolean(merged.apiKey) };
+});
+ipcMain.handle("pet:qpet-start", async (_event, payload) => {
+  const photoPath = typeof payload?.photoPath === "string" ? payload.photoPath : "";
+  if (!photoPath) return { ok: false, error: "请先选择一张照片。" };
+  if (qpetJobActive) return { ok: false, error: "已有一个生成任务在进行中，请等它结束。" };
+  qpetJobActive = true;
+  const started = { ok: true, started: true };
+  generateQPet({
+    photoPath,
+    userDataPath: app.getPath("userData"),
+    deps: {
+      nativeImage,
+      ort: require("onnxruntime-node"),
+      modelPath: localModelPath(),
+      onProgress: broadcastQPetProgress,
+    },
+  })
+    .catch((error) => {
+      writeLog(`qpet generation failed: ${error.message}`);
+      broadcastQPetProgress({ stage: "error", message: `生成失败：${error.message}`, error: true, finished: true });
+    })
+    .finally(() => {
+      qpetJobActive = false;
+    });
+  return started;
+});
 
 const singleInstanceLock = app.requestSingleInstanceLock();
 if (!singleInstanceLock) {

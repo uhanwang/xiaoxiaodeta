@@ -1336,6 +1336,19 @@ button {
 .lite-install-cta:hover:not(:disabled) { background: #a75d6b; }
 .lite-install-cta:disabled { opacity: 0.45; cursor: default; }
 .wardrobe-lite-note { margin: 0 0 12px; padding: 11px 13px; border: 1px solid #f0e4e5; border-radius: 11px; background: #fff8f8; color: #9b7a82; font-size: 11px; line-height: 1.6; }
+
+/* --- AI Q-version generation block --- */
+.qpet-block { margin-top: 14px; padding: 13px; border: 1px solid #f0e4e5; border-radius: 12px; background: #fffdfd; }
+.qpet-block > strong { display: block; color: #5b484d; font-size: 12px; margin-bottom: 6px; }
+.qpet-block > p { margin: 0 0 10px; color: #9b858a; font-size: 10px; line-height: 1.6; }
+.qpet-photo-name { color: #9b858a; font-size: 10px; }
+.qpet-settings { margin: 10px 0; }
+.qpet-settings summary { color: #a08b8f; font-size: 10px; cursor: pointer; }
+.qpet-settings-grid { display: grid; gap: 8px; margin-top: 9px; }
+.qpet-settings-grid label { display: grid; gap: 4px; color: #8d797d; font-size: 10px; }
+.qpet-settings-grid input { min-height: 30px; padding: 0 9px; border: 1px solid #ebdddf; border-radius: 8px; background: #fff; color: #58464a; font-size: 11px; user-select: text; }
+.qpet-consent { display: flex; align-items: flex-start; gap: 7px; margin: 10px 0; color: #8d797d; font-size: 10px; line-height: 1.6; cursor: pointer; }
+.qpet-consent input { margin-top: 2px; }
 .hero-lite-pet { display: grid; width: 100%; place-items: end center; }
 .hero-lite-pet img { max-height: 190px; max-width: 150px; object-fit: contain; filter: drop-shadow(0 10px 14px rgba(64, 38, 44, 0.14)); }
 

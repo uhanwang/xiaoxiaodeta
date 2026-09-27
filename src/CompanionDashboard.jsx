@@ -90,6 +90,11 @@ export function CompanionDashboard() {
   const [atlasDragOver, setAtlasDragOver] = useState(false);
   const [litePhotos, setLitePhotos] = useState([]);
   const [liteBusy, setLiteBusy] = useState(false);
+  const [qpetSettings, setQpetSettings] = useState({ baseUrl: "", model: "", hasKey: false });
+  const [qpetKeyInput, setQpetKeyInput] = useState("");
+  const [qpetPhoto, setQpetPhoto] = useState(null);
+  const [qpetConsent, setQpetConsent] = useState(false);
+  const [qpetBusy, setQpetBusy] = useState(false);
   const starTimer = useRef(null);
   const focusTimer = useRef(null);
   const mismatchTimer = useRef(null);
@@ -125,8 +130,25 @@ export function CompanionDashboard() {
       setAtlasMode(status?.mode || "default");
       setLiteManifest(status?.mode === "lite" ? (status.manifest || null) : null);
     }).catch(() => {});
+    window.pet?.qpetGetSettings?.().then((settings) => {
+      if (active && settings) setQpetSettings(settings);
+    }).catch(() => {});
     return () => { active = false; };
   }, []);
+
+  useEffect(() => window.pet?.onQPetProgress?.((progress) => {
+    if (progress?.message) setAtlasMessage(progress.message);
+    if (progress?.finished) {
+      setQpetBusy(false);
+      if (!progress.error) {
+        window.pet?.customAtlasStatus?.().then((status) => {
+          setCustomAtlas(Boolean(status?.custom));
+          setAtlasMode(status?.mode || "default");
+          setLiteManifest(status?.mode === "lite" ? (status.manifest || null) : null);
+        }).catch(() => {});
+      }
+    }
+  }), []);
 
   const refreshAtlasStatus = () => {
     window.pet?.customAtlasStatus?.().then((status) => setCustomAtlas(Boolean(status?.custom))).catch(() => {});
@@ -225,6 +247,40 @@ export function CompanionDashboard() {
       refreshAtlasStatus();
     } else {
       setAtlasMessage(result.error);
+    }
+  };
+
+  const pickQPetPhoto = (event) => {
+    const file = event.target?.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    const sourcePath = window.pet?.pathForFile?.(file);
+    if (!sourcePath) {
+      setAtlasMessage("无法读取照片路径，请把照片放在本地磁盘后重试。");
+      return;
+    }
+    setQpetPhoto({ sourcePath, name: file.name });
+  };
+
+  const startQPet = async () => {
+    if (!qpetPhoto) {
+      setAtlasMessage("请先选择一张照片。");
+      return;
+    }
+    if (!qpetConsent) {
+      setAtlasMessage("请先勾选同意：照片会发送到你配置的图像生成服务。");
+      return;
+    }
+    setQpetBusy(true);
+    const patch = { baseUrl: qpetSettings.baseUrl?.trim(), model: qpetSettings.model?.trim() };
+    if (qpetKeyInput.trim()) patch.apiKey = qpetKeyInput.trim();
+    const saved = await window.pet?.qpetSaveSettings?.(patch);
+    if (saved) setQpetSettings((current) => ({ ...current, ...patch, apiKey: undefined, hasKey: saved.hasKey }));
+    setAtlasMessage("任务已提交，正在生成…整个流程约 8-15 分钟，可以最小化窗口做别的事。");
+    const result = await window.pet?.qpetStart?.(qpetPhoto.sourcePath);
+    if (!result?.ok) {
+      setQpetBusy(false);
+      setAtlasMessage(result?.error || "生成任务没能启动。");
     }
   };
 
@@ -610,6 +666,30 @@ export function CompanionDashboard() {
                 {atlasMode !== "default" && <button type="button" onClick={resetAtlasToDefault}><RotateCcw size={15} />恢复默认形象</button>}
               </div>
               {atlasMessage && <p className="interaction-feedback" role="status">{atlasMessage}</p>}
+              <div className="qpet-block">
+                <strong>AI 生成 Q 版形象（测试）</strong>
+                <p>上传一张照片：先由 AI 转成 Q 版角色，再自动生成全套动作并安装，效果和默认角色一致。需要你自己的图像生成 API Key（约 8 次生成请求，由该服务计费）。</p>
+                <div className="lite-wizard-actions">
+                  <label className="lite-pick-label">
+                    <input type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={pickQPetPhoto} />
+                    {qpetPhoto ? "换一张照片" : "选择照片"}
+                  </label>
+                  {qpetPhoto && <span className="qpet-photo-name">{qpetPhoto.name}</span>}
+                </div>
+                <details className="qpet-settings">
+                  <summary>生成设置（服务地址 / 模型 / API Key）</summary>
+                  <div className="qpet-settings-grid">
+                    <label>服务地址<input value={qpetSettings.baseUrl || ""} onChange={(event) => setQpetSettings((current) => ({ ...current, baseUrl: event.target.value }))} placeholder="https://api.wenle.ai/v1" /></label>
+                    <label>模型<input value={qpetSettings.model || ""} onChange={(event) => setQpetSettings((current) => ({ ...current, model: event.target.value }))} placeholder="gpt-image-2.5" /></label>
+                    <label>API Key<input type="password" value={qpetKeyInput} onChange={(event) => setQpetKeyInput(event.target.value)} placeholder={qpetSettings.hasKey ? "已保存（留空保持不变）" : "sk-…"} /></label>
+                  </div>
+                </details>
+                <label className="qpet-consent">
+                  <input type="checkbox" checked={qpetConsent} onChange={(event) => setQpetConsent(event.target.checked)} />
+                  我知道所选照片会发送到我配置的图像生成服务用于绘制；抠图、拼装、安装全部在本机完成，照片不会进入源码仓库。
+                </label>
+                <button type="button" className="lite-install-cta" disabled={qpetBusy || !qpetPhoto || !qpetConsent} onClick={startQPet}>{qpetBusy ? "生成中（约 8-15 分钟）…" : "开始生成 Q 版桌宠"}</button>
+              </div>
               <details className="lite-advanced">
                 <summary>高级：导入完整 8×11 动作图集 PNG（社区形象包）</summary>
                 <div className="custom-atlas-actions">

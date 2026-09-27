@@ -34,6 +34,15 @@ contextBridge.exposeInMainWorld("pet", {
   installLitePet: (photos) => ipcRenderer.invoke("pet:install-lite-pet", { photos }),
   resetCustomAtlas: () => ipcRenderer.invoke("pet:reset-custom-atlas"),
   customAtlasStatus: () => ipcRenderer.invoke("pet:custom-atlas-status"),
+  qpetGetSettings: () => ipcRenderer.invoke("pet:qpet-settings"),
+  qpetSaveSettings: (patch) => ipcRenderer.invoke("pet:qpet-save-settings", patch),
+  qpetStart: (photoPath) => ipcRenderer.invoke("pet:qpet-start", { photoPath }),
+  onQPetProgress: (callback) => {
+    if (typeof callback !== "function") return () => {};
+    const listener = (_event, progress) => callback(progress);
+    ipcRenderer.on("pet:qpet-progress", listener);
+    return () => ipcRenderer.removeListener("pet:qpet-progress", listener);
+  },
   pathForFile: (file) => {
     try {
       return webUtils.getPathForFile(file);
