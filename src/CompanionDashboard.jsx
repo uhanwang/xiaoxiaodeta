@@ -14,7 +14,6 @@ import { createMemoryGame, flipMemoryCard, hideMemoryMismatch, MEMORY_PAIRS } fr
 import { randomRpsChoice, resolveRpsRound, RPS_CHOICES } from "./rpsGame.js";
 import { catchStar, createStarCatchGame, tickStarCatchGame } from "./starCatch.js";
 import { LITE_ROLE_OPTIONS } from "./litePetMode.js";
-import { GUIDE, identityPrompt, stripPromptText } from "./qpetGuide.js";
 
 gsap.registerPlugin(useGSAP);
 
@@ -36,19 +35,6 @@ const COLLECTION_ACTIONS = [
   ...PET_ACTIONS.map(({ id, label, group }) => ({ id, label, group })),
   ...LEGACY_ACTIONS.map(({ id, label }) => ({ id, label, group: "原有动作" })),
 ];
-
-function PromptBox({ title, text, onCopy }) {
-  const [copied, setCopied] = useState(false);
-  return (
-    <div className="prompt-box">
-      <div className="prompt-box-head">
-        <span>{title}</span>
-        <button type="button" onClick={() => { setCopied(true); onCopy(text, title); window.setTimeout(() => setCopied(false), 1600); }}>{copied ? "已复制 ✓" : "复制提示词"}</button>
-      </div>
-      <textarea readOnly value={text} rows={4} onFocus={(event) => event.target.select()} />
-    </div>
-  );
-}
 
 function progressFor(save, task) {
   const source = task.id.startsWith("weekly") ? save.activity.weekly : save.activity.daily;
@@ -104,8 +90,6 @@ export function CompanionDashboard() {
   const [atlasDragOver, setAtlasDragOver] = useState(false);
   const [litePhotos, setLitePhotos] = useState([]);
   const [liteBusy, setLiteBusy] = useState(false);
-  const [guideStrips, setGuideStrips] = useState({});
-  const [guideBusy, setGuideBusy] = useState(false);
   const starTimer = useRef(null);
   const focusTimer = useRef(null);
   const mismatchTimer = useRef(null);
@@ -145,14 +129,12 @@ export function CompanionDashboard() {
   }, []);
 
   useEffect(() => window.pet?.onQPetProgress?.((progress) => {
-    if (progress?.message) setAtlasMessage(progress.message);
-    if (progress?.finished) {
-      setGuideBusy(false);
-      if (!progress.error) {
-        setAtlasMode("atlas");
-        setLiteManifest(null);
-        setCustomAtlas(true);
-      }
+    if (progress?.finished && !progress.error) {
+      window.pet?.customAtlasStatus?.().then((status) => {
+        setCustomAtlas(Boolean(status?.custom));
+        setAtlasMode(status?.mode || "default");
+        setLiteManifest(status?.mode === "lite" ? (status.manifest || null) : null);
+      }).catch(() => {});
     }
   }), []);
 
@@ -256,57 +238,8 @@ export function CompanionDashboard() {
     }
   };
 
-  const copyGuideText = async (text, label) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setAtlasMessage(`${label}已复制，去生图工具里粘贴即可。`);
-    } catch {
-      setAtlasMessage("复制失败，请手动选中提示词文本复制。");
-    }
-  };
-
-  const handleGuideStripFile = (name, event) => {
-    const file = event.target?.files?.[0];
-    event.target.value = "";
-    if (!file) return;
-    const sourcePath = window.pet?.pathForFile?.(file);
-    if (!sourcePath) {
-      setAtlasMessage("无法读取图片路径，请把图片放在本地磁盘后重试。");
-      return;
-    }
-    setGuideStrips((current) => {
-      const previous = current[name];
-      if (previous?.previewUrl) URL.revokeObjectURL(previous.previewUrl);
-      return { ...current, [name]: { sourcePath, previewUrl: URL.createObjectURL(file), fileName: file.name } };
-    });
-  };
-
-  const clearGuideStrip = (name) => {
-    setGuideStrips((current) => {
-      const previous = current[name];
-      if (previous?.previewUrl) URL.revokeObjectURL(previous.previewUrl);
-      const next = { ...current };
-      delete next[name];
-      return next;
-    });
-  };
-
-  const allGuideStripsReady = GUIDE.strips.every((spec) => guideStrips[spec.name]);
-
-  const startGuideAssembly = async () => {
-    if (!allGuideStripsReady) {
-      setAtlasMessage("请先把 7 张动作条带都上传完整。");
-      return;
-    }
-    setGuideBusy(true);
-    setAtlasMessage("正在本地拼装你的专属桌宠…全程免费，约十几秒到一分钟。");
-    const strips = {};
-    for (const spec of GUIDE.strips) strips[spec.name] = guideStrips[spec.name].sourcePath;
-    const result = await window.pet?.qpetAssemble?.(strips);
-    if (!result?.ok) {
-      setGuideBusy(false);
-      setAtlasMessage(result?.error || "生成任务没能启动。");
-    }
+  const startGuideAssembly = () => {
+    window.pet?.openOnboarding?.();
   };
 
   useEffect(() => () => {
@@ -669,6 +602,14 @@ export function CompanionDashboard() {
                 <p>上传照片，本地自动抠图，让她以你想要的样子住在桌面上。照片只在本机处理，不会被上传，也不会离开这台电脑。</p>
                 <span>{atlasMode === "lite" ? "照片形象" : atlasMode === "atlas" ? "完整图集" : "默认形象"}</span>
               </header>
+              <div className="qpet-block guide-block">
+                <strong>专属形象向导（免费，推荐）</strong>
+                <p>独立的分层向导：第 1 层用提示词把照片变成 Q 版角色，第 2 层生成 7 张动作条带，第 3 层上传后本机一键拼装安装。生成图片用哪个工具由你决定（很多免费），生成后桌宠完全由你自己的图片构成，男生女生的照片都可以。</p>
+                <div className="lite-wizard-actions">
+                  <button type="button" className="lite-install-cta" onClick={startGuideAssembly}>打开专属形象向导</button>
+                  {atlasMode !== "default" && <button type="button" className="lite-pick-label" onClick={resetAtlasToDefault}><RotateCcw size={15} />恢复默认形象</button>}
+                </div>
+              </div>
               <details className="lite-simple">
                 <summary>简易版：照片直接秒变（本地抠图，动作较简单、边缘较粗）</summary>
                 <div className="lite-photo-list">
@@ -694,37 +635,6 @@ export function CompanionDashboard() {
               </div>
               </details>
               {atlasMessage && <p className="interaction-feedback" role="status">{atlasMessage}</p>}
-              <div className="qpet-block guide-block">
-                <strong>把桌宠变成你自己的（免费，约 10 分钟）</strong>
-                <p>用你常用的 AI 生图工具（豆包、即梦、ChatGPT 等，很多有免费额度）按下面的提示词生成图片，再回到这里上传。抠图、拼装、安装全部在本机自动完成，不调用任何付费接口。生成后桌宠完全由你自己的图片构成。</p>
-                <ol className="guide-steps">
-                  <li><b>生成 Q 版角色图：</b>在生图工具里上传一张人物照片，粘贴「角色化提示词」，得到横向 8 格的 Q 版角色图。它是后面所有动作的参考图，先确认满意。</li>
-                  <li><b>生成 7 张动作条带：</b>把这张 Q 版角色图作为参考图，逐条粘贴下面的动作提示词，每次得到一张横向动作图。哪张不满意单独重做就行。</li>
-                  <li><b>回来上传：</b>把 7 张动作条带上传到下面，点「一键生成我的桌宠」，完成后陪伴面板和桌面桌宠同步换成你的形象。</li>
-                </ol>
-                <PromptBox title="第 1 步 · 角色化提示词（配合你的人物照片使用）" text={identityPrompt()} onCopy={copyGuideText} />
-                <div className="guide-strip-prompts">
-                  {GUIDE.strips.map((spec) => <PromptBox key={spec.name} title={`第 2 步 · ${spec.label}（横条 ${spec.frames} 格）`} text={stripPromptText(spec)} onCopy={copyGuideText} />)}
-                </div>
-                <ul className="guide-tips">{GUIDE.guideTips.map((tip) => <li key={tip}>{tip}</li>)}</ul>
-                <div className="guide-upload-list">
-                  {GUIDE.strips.map((spec) => (
-                    <div key={spec.name} className="guide-upload-row">
-                      <span className="guide-upload-label">{spec.label}<small>{spec.frames} 格横条</small></span>
-                      {guideStrips[spec.name]
-                        ? <span className="guide-upload-thumb"><img src={guideStrips[spec.name].previewUrl} alt="" /></span>
-                        : <span className="guide-upload-thumb empty">空</span>}
-                      <label className="lite-pick-label">
-                        <input type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={(event) => handleGuideStripFile(spec.name, event)} />
-                        {guideStrips[spec.name] ? "重新选择" : "上传图片"}
-                      </label>
-                      {guideStrips[spec.name] && <button type="button" className="lite-remove" onClick={() => clearGuideStrip(spec.name)} aria-label={`移除${spec.label}`}>×</button>}
-                    </div>
-                  ))}
-                </div>
-                <button type="button" className="lite-install-cta" disabled={guideBusy || !allGuideStripsReady} onClick={startGuideAssembly}>{guideBusy ? "拼装中…" : allGuideStripsReady ? "一键生成我的桌宠" : "上传完 7 张动作条带后可用"}</button>
-                {atlasMode !== "default" && <button type="button" className="lite-pick-label" onClick={resetAtlasToDefault}><RotateCcw size={15} />恢复默认形象</button>}
-              </div>
               <details className="lite-advanced">
                 <summary>高级：导入完整 8×11 动作图集 PNG（社区形象包）</summary>
                 <div className="custom-atlas-actions">
@@ -762,7 +672,7 @@ export function CompanionDashboard() {
                 })}
               </div>
               )}
-              <div className="accessory-slot-controls" aria-label="配饰部位管理">{[["head", "头部"], ["neck", "颈部"], ["prop", "肩挂"]].map(([slot, label]) => <button key={slot} type="button" disabled={equipped.accessories[slot] === "none" || atlasMode === "lite"} onClick={() => removeAccessory(slot)}>取下{label}</button>)}</div>
+              <div className="accessory-slot-controls" aria-label="配饰部位管理">{[["head", "头部"], ["neck", "颈部"], ["prop", "肩挂"]].map(([slot, label]) => <button key={slot} type="button" disabled={equipped.accessories[slot] === "none" || atlasMode !== "default"} onClick={() => removeAccessory(slot)}>取下{label}</button>)}</div>
             </section>
             <section className="action-collection-section">
               <header><h2><Gamepad2 size={17} />动作收藏册</h2><p>触发过的动作会记在这里；点卡片可以再次播放并收录。</p><span>{collectedActions.size}/{COLLECTION_ACTIONS.length}</span></header>

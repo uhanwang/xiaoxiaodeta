@@ -35,6 +35,8 @@ contextBridge.exposeInMainWorld("pet", {
   resetCustomAtlas: () => ipcRenderer.invoke("pet:reset-custom-atlas"),
   customAtlasStatus: () => ipcRenderer.invoke("pet:custom-atlas-status"),
   qpetAssemble: (strips) => ipcRenderer.invoke("pet:qpet-assemble", { strips }),
+  completeOnboarding: () => ipcRenderer.invoke("pet:complete-onboarding"),
+  openOnboarding: () => ipcRenderer.send("pet:open-onboarding"),
   onQPetProgress: (callback) => {
     if (typeof callback !== "function") return () => {};
     const listener = (_event, progress) => callback(progress);

@@ -23,6 +23,7 @@ if (userDataOverride) {
 }
 let mainWindow;
 let dashboardWindow;
+let onboardingWindow;
 let tray;
 let savePositionTimer;
 let interactionMode = { menuOpen: false };
@@ -865,6 +866,49 @@ function ensureDashboard() {
   createdDashboard.loadURL(createAppUrl("dashboard", "home")).catch((error) => writeLog(`dashboard load rejected ${error.stack || error.message}`));
 }
 
+function createOnboardingWindow() {
+  if (onboardingWindow && !onboardingWindow.isDestroyed()) {
+    onboardingWindow.show();
+    onboardingWindow.focus();
+    return;
+  }
+  onboardingWindow = new BrowserWindow({
+    width: 960,
+    height: 720,
+    minWidth: 860,
+    minHeight: 620,
+    show: false,
+    autoHideMenuBar: true,
+    backgroundColor: "#faf4f5",
+    title: "小小的她 · 专属形象向导",
+    icon: appIconPath(),
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      preload: path.join(__dirname, "preload.cjs"),
+    },
+  });
+  onboardingWindow.once("ready-to-show", () => {
+    if (onboardingWindow && !onboardingWindow.isDestroyed()) onboardingWindow.show();
+  });
+  onboardingWindow.on("closed", () => {
+    // Closing the wizard counts as "seen it"; it can always be reopened from
+    // the dashboard or the tray.
+    markOnboarded();
+    onboardingWindow = null;
+  });
+  onboardingWindow.loadURL(createAppUrl("onboarding")).catch((error) => writeLog(`onboarding load rejected ${error.message}`));
+}
+
+function markOnboarded() {
+  try {
+    fs.mkdirSync(app.getPath("userData"), { recursive: true });
+    fs.writeFileSync(path.join(app.getPath("userData"), "onboarded.json"), JSON.stringify({ at: new Date().toISOString() }), "utf8");
+  } catch (error) {
+    writeLog(`onboarding marker failed: ${error.message}`);
+  }
+}
+
 function openDashboard(tab = "home") {
   const safeTab = ["home", "play", "memory", "actions", "collection", "chat"].includes(tab) ? tab : "home";
   writeLog(`openDashboard requested tab=${safeTab}`);
@@ -891,6 +935,7 @@ function createTray() {
     { label: "显示小小的她", click: () => mainWindow?.showInactive() },
     { label: "打开陪伴面板", click: () => openDashboard("home") },
     { label: "打开互动玩法", click: () => openDashboard("play") },
+    { label: "专属形象向导", click: () => createOnboardingWindow() },
     { type: "separator" },
     { label: "更换形象…", click: () => { chooseAndInstallAtlas(); } },
     { label: "恢复默认形象", click: () => { resetAtlasToDefault(); } },
@@ -1085,6 +1130,11 @@ function broadcastQPetProgress(progress) {
   }
 }
 
+ipcMain.handle("pet:complete-onboarding", () => {
+  markOnboarded();
+  return { ok: true };
+});
+ipcMain.on("pet:open-onboarding", () => createOnboardingWindow());
 ipcMain.handle("pet:qpet-assemble", async (_event, payload) => {
   const strips = payload?.strips;
   if (!strips || typeof strips !== "object") {
@@ -1102,7 +1152,10 @@ ipcMain.handle("pet:qpet-assemble", async (_event, payload) => {
       onProgress: broadcastQPetProgress,
     },
   })
-    .then(() => openDashboard("home"))
+    .then(() => {
+      if (onboardingWindow && !onboardingWindow.isDestroyed()) onboardingWindow.close();
+      openDashboard("home");
+    })
     .catch((error) => {
       writeLog(`qpet assembly failed: ${error.message}`);
       broadcastQPetProgress({ stage: "error", message: `生成失败：${error.message}`, error: true, finished: true });
@@ -1172,14 +1225,13 @@ app.whenReady().then(async () => {
   maybeRunFirstRunOnboarding();
 }).catch((error) => writeLog(`startup rejected ${error.stack || error.message}`));
 
-// First launch: open the companion panel on the guide section so new users
-// see how to make the pet their own before anything else.
+// First launch: open the layered onboarding wizard before anything else, so
+// making the pet their own is the front door of the whole experience.
 function maybeRunFirstRunOnboarding() {
   try {
     const marker = path.join(app.getPath("userData"), "onboarded.json");
     if (fs.existsSync(marker)) return;
-    fs.writeFileSync(marker, JSON.stringify({ at: new Date().toISOString() }), "utf8");
-    if (!shouldCapture) setTimeout(() => openDashboard("collection"), 1800);
+    if (!shouldCapture) setTimeout(() => createOnboardingWindow(), 1500);
   } catch (error) {
     writeLog(`onboarding marker failed: ${error.message}`);
   }
