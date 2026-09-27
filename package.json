@@ -1,6 +1,6 @@
 {
   "name": "xiaoxiaodeta",
-  "version": "1.6.0",
+  "version": "1.6.1",
   "description": "小小的她 · 安静、离线、可拖动的桌面陪伴伙伴，支持自定义形象导入、文字互动和本地成长玩法。",
   "private": true,
   "type": "module",
@@ -9,7 +9,7 @@
     "dev:desktop": "concurrently -k \"vite --host 127.0.0.1 --port 4173 --strictPort\" \"wait-on http://127.0.0.1:4173 && electron electron/main.cjs --dev\"",
     "build": "vite build",
     "build:desktop": "npm run build:portable",
-    "build:portable": "npm run build && electron-builder --win dir && pwsh -File scripts/build-portable-launcher.ps1 -PackageDirectory artifacts/desktop-1.6.0/win-unpacked && pwsh -File scripts/package-portable.ps1 -PackageDirectory artifacts/desktop-1.6.0/win-unpacked",
+    "build:portable": "npm run build && electron-builder --win dir && pwsh -File scripts/build-portable-launcher.ps1 -PackageDirectory artifacts/desktop-1.6.1/win-unpacked && pwsh -File scripts/package-portable.ps1 -PackageDirectory artifacts/desktop-1.6.1/win-unpacked",
     "capture:desktop": "concurrently -k --success first \"vite --host 127.0.0.1 --port 4173 --strictPort\" \"wait-on http://127.0.0.1:4173 && electron electron/main.cjs --dev --capture\"",
     "test": "node --test tests/pet-machine.test.mjs tests/progression.test.mjs tests/chat-replies.test.mjs tests/action-registry.test.mjs tests/memory-game.test.mjs tests/drag-coalescer.test.mjs tests/drag-session.test.mjs tests/rps-game.test.mjs tests/star-catch.test.mjs tests/pet-hit-area.test.cjs tests/custom-assets.test.mjs tests/custom-atlas-feedback.test.mjs tests/image-ops.test.mjs tests/lite-pet.test.mjs tests/lite-mode.test.mjs tests/atlas-compose.test.mjs",
     "test:atlas": "node scripts/test-atlas.cjs",
@@ -40,12 +40,13 @@
     "productName": "小小的她",
     "electronDist": "node_modules/electron/dist",
     "directories": {
-      "output": "artifacts/desktop-1.6.0"
+      "output": "artifacts/desktop-1.6.1"
     },
     "files": [
       "dist/client/**/*",
       "electron/**/*",
       "src/progression.js",
+      "shared/**/*",
       "package.json",
       "node_modules/onnxruntime-node/**/*",
       "node_modules/onnxruntime-common/**/*",

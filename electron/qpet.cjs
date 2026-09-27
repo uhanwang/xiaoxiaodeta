@@ -6,8 +6,6 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
-const STRIPS_GUIDE = require("../shared/qpet-strips.json");
-
 const {
   atlasQA,
   composeAtlas,
@@ -23,8 +21,18 @@ const { rgbaFromBgra } = require("./imageOps.cjs");
 const CELL_W = 192;
 const CELL_H = 208;
 
+// Loaded lazily (not at module load) so a packaging mistake can never hang
+// the whole app at startup; it only fails the assembly with a clear message.
+function loadGuide() {
+  try {
+    return require("../shared/qpet-strips.json");
+  } catch {
+    throw new Error("引导配置文件（shared/qpet-strips.json）缺失，请重新安装或下载完整安装包。");
+  }
+}
+
 function stripSpecs() {
-  return STRIPS_GUIDE.strips;
+  return loadGuide().strips;
 }
 
 async function frameCutout(frame, session, ort) {
