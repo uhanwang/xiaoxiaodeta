@@ -6,7 +6,7 @@ import {
   Heart, ImagePlus, MessageCircle, Moon, RotateCcw, Sparkles, Star, Timer, Trophy, X,
 } from "lucide-react";
 import { AtlasFrame } from "./AtlasFrame.jsx";
-import { ATLAS_ACTION_FALLBACKS, ATLAS_STATE_FALLBACKS, PET_ACTIONS } from "./actionRegistry.js";
+import { ATLAS_ACTION_FALLBACKS, ATLAS_STATE_FALLBACKS, PET_ACTIONS, setAppearanceVersion } from "./actionRegistry.js";
 import { COSMETIC_ITEMS, DAILY_TASKS, FOOD_ITEMS, WEEKLY_TASKS, localDateKey } from "./progression.js";
 import { useProgressSave } from "./useProgressSave.js";
 import { getSweetReply } from "./chatReplies.js";
@@ -130,6 +130,7 @@ export function CompanionDashboard() {
       setLiteManifest(status?.mode === "lite" ? (status.manifest || null) : null);
       setAtlasAnchors(status?.anchors || null);
       setOutfitVariants(Array.isArray(status?.outfitVariants) ? status.outfitVariants : []);
+      setAppearanceVersion(status?.appearanceToken || "");
     }).catch(() => {});
     window.pet?.closetList?.().then((data) => {
       if (active) setClosetSlots(Array.isArray(data?.slots) ? data.slots : []);
@@ -149,6 +150,7 @@ export function CompanionDashboard() {
         setLiteManifest(status?.mode === "lite" ? (status.manifest || null) : null);
         setAtlasAnchors(status?.anchors || null);
         setOutfitVariants(Array.isArray(status?.outfitVariants) ? status.outfitVariants : []);
+        setAppearanceVersion(status?.appearanceToken || "");
       }).catch(() => {});
       refreshCloset();
     }
@@ -558,7 +560,7 @@ export function CompanionDashboard() {
                   <button type="button" disabled={checkInDone} onClick={() => record("checkin")}><CalendarCheck2 size={16} />{checkInDone ? "已签到" : "签到"}</button>
                 </div>
               </div>
-              <div className="hero-pet">{atlasMode === "lite" && liteManifest?.images?.idle ? <div className="hero-lite-pet"><img src={`./assets/custom/lite/${liteManifest.images.idle}`} alt="桌宠" /></div> : <AtlasFrame row={3} frames={4} loopMs={1000} label="桌宠挥手" outfit={equipped.outfit} accessories={equipped.accessories} anchors={atlasAnchors} />}<div className="pet-caption">{atlasMode === "lite" ? "你的照片形象" : COSMETIC_ITEMS.find((item) => item.type === "outfit" && item.outfit === equipped.outfit)?.name || "日常白裙"}</div></div>
+              <div className="hero-pet">{atlasMode === "lite" && liteManifest?.images?.idle ? <div className="hero-lite-pet"><img src={`./assets/custom/lite/${liteManifest.images.idle}`} alt="桌宠" /></div> : <AtlasFrame row={3} frames={4} loopMs={1000} label="桌宠挥手" outfit={equipped.outfit} accessories={equipped.accessories} anchors={atlasAnchors} />}<div className="pet-caption">{atlasMode === "lite" ? "你的照片形象" : atlasMode === "atlas" ? (COSMETIC_ITEMS.find((item) => item.type === "outfit" && item.outfit === equipped.outfit && outfitVariants.includes(item.outfit))?.name || "我的专属形象") : COSMETIC_ITEMS.find((item) => item.type === "outfit" && item.outfit === equipped.outfit)?.name || "日常白裙"}</div></div>
               <div className="hero-decoration deco-one">✦</div><div className="hero-decoration deco-two">♡</div>
             </section>
 

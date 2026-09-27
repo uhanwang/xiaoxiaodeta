@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { autoStateForIdleTime } from "./petMachine.js";
 import { useProgressSave } from "./useProgressSave.js";
-import { ATLAS_ACTION_FALLBACKS, ATLAS_STATE_FALLBACKS, PET_ACTIONS, directionForGaze, gazeIndexFromPoint } from "./actionRegistry.js";
+import { ATLAS_ACTION_FALLBACKS, ATLAS_STATE_FALLBACKS, PET_ACTIONS, directionForGaze, gazeIndexFromPoint, setAppearanceVersion } from "./actionRegistry.js";
 import { AtlasFrame } from "./AtlasFrame.jsx";
 import { LitePetSprite } from "./LitePetSprite.jsx";
 import { createDragSession, updateDragSession } from "./dragSession.js";
@@ -99,6 +99,7 @@ export function App() {
       setLiteManifest(status?.mode === "lite" ? (status.manifest || { images: {} }) : null);
       setOutfitVariants(Array.isArray(status?.outfitVariants) ? status.outfitVariants : []);
       setAtlasAnchors(status?.anchors || null);
+      setAppearanceVersion(status?.appearanceToken || "");
     }).catch(() => {});
   }, []);
 

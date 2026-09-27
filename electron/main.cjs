@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, protocol, screen, Tray } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, protocol, screen, session, Tray } = require("electron");
 const fs = require("node:fs");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
@@ -241,7 +241,16 @@ function runCustomAssetCommand(command) {
   }
 }
 
-function reloadPetWindows() {
+async function reloadPetWindows() {
+  // reloadIgnoringCache does NOT bypass the HTTP cache for subresources: the
+  // atlas URL stays the same across installs/switches, so Chromium kept
+  // serving the previously cached look (hero page and wardrobe previews
+  // showed the old character). Clear the cache before reloading.
+  try {
+    await session.defaultSession.clearCache();
+  } catch {
+    // Cache clearing is best-effort; the reload below still runs.
+  }
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.reloadIgnoringCache();
   if (dashboardWindow && !dashboardWindow.isDestroyed()) dashboardWindow.webContents.reloadIgnoringCache();
 }
@@ -287,6 +296,7 @@ async function chooseAndInstallAtlas() {
 
 function registerAssetProtocol() {
   const root = path.resolve(__dirname, "..", "dist", "client");
+  const userDataRoot = path.resolve(app.getPath("userData"));
   const mimeTypes = {
     ".css": "text/css; charset=utf-8",
     ".html": "text/html; charset=utf-8",
@@ -305,7 +315,12 @@ function registerAssetProtocol() {
     try {
       const body = await fs.promises.readFile(filePath);
       const contentType = mimeTypes[path.extname(filePath).toLowerCase()] || "application/octet-stream";
-      return new Response(body, { headers: { "content-type": contentType } });
+      const headers = { "content-type": contentType };
+      // Files under userData (custom atlas, wardrobe variants, closet slots,
+      // lite sprites) change on disk while the URL stays the same — serving
+      // them cacheable made old looks reappear after install/switch.
+      if (filePath.startsWith(userDataRoot)) headers["cache-control"] = "no-store";
+      return new Response(body, { headers });
     } catch {
       return new Response("Not found", { status: 404 });
     }
@@ -1118,6 +1133,27 @@ function ensureAtlasAnchors(userDataPath) {
   }
 }
 
+// Cache-buster for the renderer: the atlas URL is identical across installs,
+// switches and variant regeneration, so the renderer appends this token to
+// every atlas URL (?v=…) and the old look can never come from cache.
+function appearanceToken(userDataPath) {
+  try {
+    const { customAtlasPath } = require("./customAssets.cjs");
+    const stat = fs.statSync(customAtlasPath(userDataPath));
+    let token = `${Math.round(stat.mtimeMs)}x${stat.size}`;
+    const wardrobeDir = path.join(userDataPath, "custom-pet", "wardrobe");
+    if (fs.existsSync(wardrobeDir)) {
+      for (const file of fs.readdirSync(wardrobeDir).sort()) {
+        const variantStat = fs.statSync(path.join(wardrobeDir, file));
+        token += `|${file}:${Math.round(variantStat.mtimeMs)}x${variantStat.size}`;
+      }
+    }
+    return token;
+  } catch {
+    return "default";
+  }
+}
+
 ipcMain.handle("pet:custom-atlas-status", () => {
   const userDataPath = app.getPath("userData");
   const mode = resolveAppearanceMode(userDataPath);
@@ -1128,6 +1164,7 @@ ipcMain.handle("pet:custom-atlas-status", () => {
     manifest: mode === "lite" ? readLiteManifest(userDataPath) : null,
     anchors: mode === "atlas" ? readAnchors(userDataPath) : null,
     outfitVariants: mode === "atlas" ? [...listWardrobeVariants(userDataPath)] : [],
+    appearanceToken: appearanceToken(userDataPath),
   };
 });
 
@@ -1272,12 +1309,14 @@ ipcMain.handle("pet:qpet-assemble", async (_event, payload) => {
         }
       }
       // Close the wizard first; its closed handler schedules a "home" landing
-      // 250ms later, so the real landing is applied after that to win.
+      // 250ms later, so the real landing is applied after that to win. The
+      // cache MUST be cleared before the dashboard window is created — a
+      // freshly created window still reads the HTTP cache, and the atlas URL
+      // is identical across looks, so it would show the previous character.
       if (onboardingWindow && !onboardingWindow.isDestroyed()) onboardingWindow.close();
       const landingTab = target !== "active" ? "collection" : "home";
       setTimeout(() => {
-        openDashboard(landingTab);
-        reloadPetWindows();
+        reloadPetWindows().then(() => openDashboard(landingTab));
       }, 350);
     })
     .catch((error) => {
@@ -1304,10 +1343,7 @@ if (!singleInstanceLock) {
     }
     if (command) {
       const result = runCustomAssetCommand(command);
-      if (result.ok) {
-        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.reloadIgnoringCache();
-        if (dashboardWindow && !dashboardWindow.isDestroyed()) dashboardWindow.webContents.reloadIgnoringCache();
-      }
+      if (result.ok) reloadPetWindows();
       return;
     }
     if (!mainWindow || mainWindow.isDestroyed()) {

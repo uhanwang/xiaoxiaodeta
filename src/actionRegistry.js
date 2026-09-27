@@ -1,6 +1,19 @@
 export const ATLAS_URL = "./assets/atlas/pet-actions-installed.webp";
 export const ATLAS = Object.freeze({ columns: 8, rows: 11, cellWidth: 192, cellHeight: 208 });
 
+// Appearance version token: the main process derives it from the active
+// atlas + wardrobe variant files, so every install/switch/regeneration
+// changes it. Atlas URLs carry it as ?v=… — otherwise the HTTP cache keeps
+// serving the previous look under the identical URL (hero and the default
+// outfit card showed the old character after switching).
+let appearanceVersion = "";
+export function setAppearanceVersion(version) {
+  appearanceVersion = String(version || "");
+}
+function withVersion(url) {
+  return appearanceVersion ? `${url}?v=${encodeURIComponent(appearanceVersion)}` : url;
+}
+
 export const PET_ACTIONS = Object.freeze([
   { id: "idle", label: "待机呼吸", row: 0, frames: 7, loopMs: 1400, group: "陪伴" },
   { id: "run-right", label: "向右跑", row: 1, frames: 8, loopMs: 980, group: "移动" },
@@ -69,7 +82,7 @@ export function atlasCellStyle(row, column, atlasUrl = ATLAS_URL) {
   const safeColumn = Math.max(0, Math.min(ATLAS.columns - 1, column));
   const safeRow = Math.max(0, Math.min(ATLAS.rows - 1, row));
   return {
-    backgroundImage: `url("${atlasUrl}")`,
+    backgroundImage: `url("${withVersion(atlasUrl)}")`,
     backgroundSize: `${ATLAS.columns * 100}% ${ATLAS.rows * 100}%`,
     backgroundPosition: `${safeColumn * 100 / (ATLAS.columns - 1)}% ${safeRow * 100 / (ATLAS.rows - 1)}%`,
   };
