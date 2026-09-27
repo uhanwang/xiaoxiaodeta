@@ -1349,6 +1349,29 @@ button {
 .qpet-settings-grid input { min-height: 30px; padding: 0 9px; border: 1px solid #ebdddf; border-radius: 8px; background: #fff; color: #58464a; font-size: 11px; user-select: text; }
 .qpet-consent { display: flex; align-items: flex-start; gap: 7px; margin: 10px 0; color: #8d797d; font-size: 10px; line-height: 1.6; cursor: pointer; }
 .qpet-consent input { margin-top: 2px; }
+
+/* --- Free guide (make-it-yours) block --- */
+.guide-block > p { margin: 0 0 10px; }
+.guide-steps { margin: 0 0 12px; padding-left: 18px; color: #76545c; font-size: 11px; line-height: 1.8; }
+.guide-steps b { color: #5b484d; }
+.guide-strip-prompts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; margin-top: 9px; }
+.prompt-box { border: 1px solid #f0e4e5; border-radius: 10px; background: #fffafa; padding: 8px 9px; }
+.prompt-box-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.prompt-box-head span { color: #5b484d; font-size: 10px; font-weight: 600; }
+.prompt-box-head button { padding: 3px 9px; border: 1px solid #eedfe2; border-radius: 7px; background: #fff; color: #986873; font-size: 10px; cursor: pointer; }
+.prompt-box-head button:hover { background: #f9edef; }
+.prompt-box textarea { width: 100%; box-sizing: border-box; resize: vertical; border: 0; outline: 0; background: transparent; color: #7a656a; font: inherit; font-size: 10px; line-height: 1.6; user-select: text; }
+.guide-tips { margin: 10px 0; padding-left: 16px; color: #a08b8f; font-size: 10px; line-height: 1.7; }
+.guide-upload-list { display: grid; gap: 8px; margin: 12px 0; }
+.guide-upload-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid #f0e4e5; border-radius: 10px; background: #fffafa; }
+.guide-upload-label { display: grid; width: 92px; flex: none; color: #5b484d; font-size: 11px; }
+.guide-upload-label small { color: #a89297; font-size: 9px; }
+.guide-upload-thumb { display: grid; width: 74px; height: 44px; flex: none; place-items: center; overflow: hidden; border-radius: 8px; background: #f7edef; color: #c9aab1; font-size: 10px; }
+.guide-upload-thumb img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.guide-upload-thumb.empty { border: 1px dashed #e6d3d7; background: #fffdfd; }
+.lite-simple { margin-top: 12px; border-top: 1px dashed #f0e4e5; padding-top: 9px; }
+.lite-simple summary { color: #a08b8f; font-size: 10px; cursor: pointer; }
+.lite-simple[open] summary { margin-bottom: 9px; }
 .hero-lite-pet { display: grid; width: 100%; place-items: end center; }
 .hero-lite-pet img { max-height: 190px; max-width: 150px; object-fit: contain; filter: drop-shadow(0 10px 14px rgba(64, 38, 44, 0.14)); }
 

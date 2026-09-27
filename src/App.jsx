@@ -382,6 +382,20 @@ export function App() {
   const activeAtlasAction = PET_ACTIONS.find((action) => action.id === atlasActionId) || PET_ACTIONS[0];
   const gaze = directionForGaze(gazeIndex);
   const equipped = save.progression.equipped || { outfit: "default", accessory: "none" };
+  // A custom atlas belongs to the user's own character: never overlay the
+  // default wardrobe tints or default gesture sheets on top of it.
+  const isCustomAtlas = appearanceMode === "atlas";
+  const renderOutfit = isCustomAtlas ? "default" : equipped.outfit;
+  const renderAccessories = isCustomAtlas ? { head: "none", neck: "none", prop: "none" } : equipped.accessories;
+  const gestureFallbacks = {
+    heart: { row: 3, frames: 4, loopMs: 880 },
+    celebrate: { row: 4, frames: 5, loopMs: 820 },
+    shy: { row: 6, frames: 6, loopMs: 1500 },
+    "rps-rock": { row: 3, frames: 4, loopMs: 880 },
+    "rps-scissors": { row: 3, frames: 4, loopMs: 880 },
+    "rps-paper": { row: 3, frames: 4, loopMs: 880 },
+  };
+  const gestureFallback = isCustomAtlas && activeAtlasAction.sprite ? gestureFallbacks[activeAtlasAction.id] : null;
 
   return (
     <main className="pet-window" onPointerDown={() => { if (menuOpen) setMenuOpen(false); }}>
@@ -405,12 +419,14 @@ export function App() {
           actionId={state === "atlas-action" ? activeAtlasAction.id : state}
           effect={actionEffect}
         />
+      ) : state === "atlas-action" && gestureFallback ? (
+        <AtlasFrame row={gestureFallback.row} frames={gestureFallback.frames} loopMs={gestureFallback.loopMs} className={`pet-atlas-sprite action-${actionEffect}`} label={activeAtlasAction.label} outfit={renderOutfit} accessories={renderAccessories} />
       ) : state === "atlas-action" ? (
-        <AtlasFrame row={activeAtlasAction.row} sprite={activeAtlasAction.sprite} columns={activeAtlasAction.columns} sheetRows={activeAtlasAction.sheetRows} frames={activeAtlasAction.frames} frameSequence={activeAtlasAction.frameSequence} gestureChoice={activeAtlasAction.gestureChoice} loopMs={activeAtlasAction.loopMs} className={`pet-atlas-sprite ${activeAtlasAction.sprite ? "sheet-action" : ""} action-${actionEffect}`} label={activeAtlasAction.label} outfit={equipped.outfit} accessories={equipped.accessories} />
+        <AtlasFrame row={activeAtlasAction.row} sprite={activeAtlasAction.sprite} columns={activeAtlasAction.columns} sheetRows={activeAtlasAction.sheetRows} frames={activeAtlasAction.frames} frameSequence={activeAtlasAction.frameSequence} gestureChoice={activeAtlasAction.gestureChoice} loopMs={activeAtlasAction.loopMs} className={`pet-atlas-sprite ${activeAtlasAction.sprite ? "sheet-action" : ""} action-${actionEffect}`} label={activeAtlasAction.label} outfit={renderOutfit} accessories={renderAccessories} />
         ) : state === "idle" ? (
-          <AtlasFrame row={gaze.row} frameOffset={gaze.column} frames={1} className="pet-atlas-sprite" label={`桌宠看向${gaze.label}`} outfit={equipped.outfit} accessories={equipped.accessories} />
+          <AtlasFrame row={gaze.row} frameOffset={gaze.column} frames={1} className="pet-atlas-sprite" label={`桌宠看向${gaze.label}`} outfit={renderOutfit} accessories={renderAccessories} />
         ) : (
-          <AtlasFrame row={0} sprite={sprites[state] || sprites.idle} columns={1} sheetRows={1} frames={1} className={`pet-atlas-sprite legacy-sprite state-${state}`} label={`桌宠${state === "sleep" ? "睡觉" : state === "sit" ? "坐下" : "回应"}`} outfit={equipped.outfit} accessories={equipped.accessories} />
+          <AtlasFrame row={0} sprite={sprites[state] || sprites.idle} columns={1} sheetRows={1} frames={1} className={`pet-atlas-sprite legacy-sprite state-${state}`} label={`桌宠${state === "sleep" ? "睡觉" : state === "sit" ? "坐下" : "回应"}`} outfit={renderOutfit} accessories={renderAccessories} />
         )}
         {actionEffect && <div className={`interaction-effects effect-${actionEffect}`} aria-hidden="true"><i>{actionEffect === "feed" ? "🍪" : actionEffect === "pet" ? "♡" : actionEffect === "hug" ? "♥" : actionEffect === "wake" ? "✦" : "✧"}</i><i>{actionEffect === "feed" ? "✦" : actionEffect === "pet" ? "✧" : "♡"}</i><i>{actionEffect === "hug" ? "♡" : "✦"}</i></div>}
       </button>

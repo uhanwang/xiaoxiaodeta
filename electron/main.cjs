@@ -11,7 +11,7 @@ const {
 } = require("./customAssets.cjs");
 const { atlasFeedback } = require("./atlas-feedback.cjs");
 const { installLitePet, readLiteManifest, resetLitePet, writeActiveMode } = require("./litePet.cjs");
-const { generateQPet, loadSettings, saveSettings } = require("./qpet.cjs");
+const { assembleQPet } = require("./qpet.cjs");
 const { isPetHitTarget } = require("./pet-hit-area.cjs");
 
 const isDev = process.argv.includes("--dev");
@@ -1085,28 +1085,15 @@ function broadcastQPetProgress(progress) {
   }
 }
 
-ipcMain.handle("pet:qpet-settings", () => {
-  const settings = loadSettings(app.getPath("userData"));
-  return {
-    baseUrl: settings.baseUrl,
-    model: settings.model,
-    size: settings.size,
-    quality: settings.quality,
-    hasKey: Boolean(settings.apiKey),
-  };
-});
-ipcMain.handle("pet:qpet-save-settings", (_event, patch) => {
-  const merged = saveSettings(app.getPath("userData"), patch && typeof patch === "object" ? patch : {});
-  return { ok: true, hasKey: Boolean(merged.apiKey) };
-});
-ipcMain.handle("pet:qpet-start", async (_event, payload) => {
-  const photoPath = typeof payload?.photoPath === "string" ? payload.photoPath : "";
-  if (!photoPath) return { ok: false, error: "请先选择一张照片。" };
+ipcMain.handle("pet:qpet-assemble", async (_event, payload) => {
+  const strips = payload?.strips;
+  if (!strips || typeof strips !== "object") {
+    return { ok: false, error: "请先按引导上传全部动作条带图片。" };
+  }
   if (qpetJobActive) return { ok: false, error: "已有一个生成任务在进行中，请等它结束。" };
   qpetJobActive = true;
-  const started = { ok: true, started: true };
-  generateQPet({
-    photoPath,
+  assembleQPet({
+    strips,
     userDataPath: app.getPath("userData"),
     deps: {
       nativeImage,
@@ -1115,14 +1102,15 @@ ipcMain.handle("pet:qpet-start", async (_event, payload) => {
       onProgress: broadcastQPetProgress,
     },
   })
+    .then(() => openDashboard("home"))
     .catch((error) => {
-      writeLog(`qpet generation failed: ${error.message}`);
+      writeLog(`qpet assembly failed: ${error.message}`);
       broadcastQPetProgress({ stage: "error", message: `生成失败：${error.message}`, error: true, finished: true });
     })
     .finally(() => {
       qpetJobActive = false;
     });
-  return started;
+  return { ok: true, started: true };
 });
 
 const singleInstanceLock = app.requestSingleInstanceLock();
@@ -1181,7 +1169,21 @@ app.whenReady().then(async () => {
   startSatietyClock();
   createWindow();
   createTray();
+  maybeRunFirstRunOnboarding();
 }).catch((error) => writeLog(`startup rejected ${error.stack || error.message}`));
+
+// First launch: open the companion panel on the guide section so new users
+// see how to make the pet their own before anything else.
+function maybeRunFirstRunOnboarding() {
+  try {
+    const marker = path.join(app.getPath("userData"), "onboarded.json");
+    if (fs.existsSync(marker)) return;
+    fs.writeFileSync(marker, JSON.stringify({ at: new Date().toISOString() }), "utf8");
+    if (!shouldCapture) setTimeout(() => openDashboard("collection"), 1800);
+  } catch (error) {
+    writeLog(`onboarding marker failed: ${error.message}`);
+  }
+}
 
 app.on("window-all-closed", () => {
   writeLog("window-all-closed");
